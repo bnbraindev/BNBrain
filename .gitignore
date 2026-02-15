@@ -1,0 +1,74 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# contract source cache
+.contract-cache/
+
+# env secrets
+env.vercel
+
+# test results
+test-results/
+
+# run logs
+.logs/
+
+# Internal docs (local archive)
+/ref/
+/docs/*-audit-*
+/docs/*-checklist-*
+/docs/*-fix-*
+/docs/*-reaudit-*
+/docs/competitors-*
+/docs/source.json
+/docs/search-tools-plan.md
+
+# AI assistant configs
+CLAUDE.md
+context.md
+next.md
+PLAN.md
+.cursor/
+
+# Local dev docker configs
+docker-compose.dev.yml
+Dockerfile.dev

@@ -1,0 +1,316 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+:root {
+  --radius: 0.9rem;
+  /* Dark workstation base */
+  --background: oklch(0.13 0.015 260);
+  --foreground: oklch(0.94 0.005 260);
+  /* Cards: noticeably lighter for message containers */
+  --card: oklch(0.20 0.012 260);
+  --card-foreground: oklch(0.94 0.005 260);
+  --popover: oklch(0.20 0.012 260);
+  --popover-foreground: oklch(0.94 0.005 260);
+  /* BNB Gold as primary */
+  --primary: oklch(0.78 0.16 85);
+  --primary-foreground: oklch(0.15 0.01 85);
+  /* Secondary */
+  --secondary: oklch(0.22 0.01 260);
+  --secondary-foreground: oklch(0.90 0.005 260);
+  /* Muted: for code backgrounds, subtle panels */
+  --muted: oklch(0.17 0.012 260);
+  --muted-foreground: oklch(0.65 0.01 260);
+  /* Accent */
+  --accent: oklch(0.22 0.015 260);
+  --accent-foreground: oklch(0.94 0.005 260);
+  /* Destructive */
+  --destructive: oklch(0.65 0.22 25);
+  /* Borders & inputs — slightly more visible */
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  /* Ring: gold */
+  --ring: oklch(0.78 0.16 85);
+  /* Charts */
+  --chart-1: oklch(0.78 0.16 85);
+  --chart-2: oklch(0.70 0.17 162);
+  --chart-3: oklch(0.65 0.18 265);
+  --chart-4: oklch(0.63 0.22 305);
+  --chart-5: oklch(0.65 0.20 20);
+  /* Sidebar */
+  --sidebar: oklch(0.15 0.015 260);
+  --sidebar-foreground: oklch(0.90 0.005 260);
+  --sidebar-primary: oklch(0.78 0.16 85);
+  --sidebar-primary-foreground: oklch(0.15 0.01 85);
+  --sidebar-accent: oklch(0.22 0.015 260);
+  --sidebar-accent-foreground: oklch(0.94 0.005 260);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.78 0.16 85);
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.35 0.01 260 / 50%);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.45 0.01 260 / 60%);
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+  color-scheme: dark;
+}
+
+button,
+a,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+/* Message animation */
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-message-in {
+  animation: message-in 0.2s ease-out;
+}
+
+/* Pulse glow for active scanning — gold */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.78 0.16 85 / 35%); }
+  50% { box-shadow: 0 0 12px 4px oklch(0.78 0.16 85 / 18%); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Shield breathing glow for empty state hero */
+@keyframes shield-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 oklch(0.78 0.16 85 / 0%),
+      0 0 0 0 oklch(0.78 0.16 85 / 0%);
+  }
+  50% {
+    box-shadow:
+      0 0 20px 6px oklch(0.78 0.16 85 / 15%),
+      0 0 40px 12px oklch(0.78 0.16 85 / 8%);
+  }
+}
+
+.animate-shield-glow {
+  animation: shield-glow 3s ease-in-out infinite;
+}
+
+/* Scan line for shield icon */
+@keyframes scan-line {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+.animate-scan-line {
+  animation: scan-line 2.5s ease-in-out infinite;
+}
+
+/* Card hover lift */
+.card-hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px oklch(0 0 0 / 40%);
+}
+
+/* Staggered fade-in for lists (quick actions, suggested replies) */
+@keyframes stagger-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-stagger-in > * {
+  opacity: 0;
+  animation: stagger-fade-in 0.35s ease-out forwards;
+}
+
+.animate-stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger-in > *:nth-child(2) { animation-delay: 60ms; }
+.animate-stagger-in > *:nth-child(3) { animation-delay: 120ms; }
+.animate-stagger-in > *:nth-child(4) { animation-delay: 180ms; }
+.animate-stagger-in > *:nth-child(5) { animation-delay: 240ms; }
+
+/* Tool card state transition */
+.tool-card-transition {
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
+}
+
+/* Textarea smooth height */
+.textarea-smooth {
+  transition: height 0.15s ease-out;
+}
+
+/* Empty state hero entrance */
+@keyframes hero-entrance {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-hero-entrance {
+  animation: hero-entrance 0.5s ease-out;
+}
+
+/* Title slide up */
+@keyframes title-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-title-slide-up {
+  animation: title-slide-up 0.4s ease-out 0.15s both;
+}
+
+/* Collapsible expand */
+@keyframes expand-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-expand-in {
+  animation: expand-in 0.2s ease-out;
+}
+
+/* Sidebar search expand */
+@keyframes search-expand {
+  from { opacity: 0; transform: scaleX(0.85); transform-origin: right; }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+.animate-search-expand {
+  animation: search-expand 0.2s ease-out;
+}
+
+/* Sidebar gradient separator */
+.sidebar-gradient-sep {
+  height: 1px;
+  background: linear-gradient(to right, transparent, oklch(1 0 0 / 6%) 20%, oklch(1 0 0 / 6%) 80%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
