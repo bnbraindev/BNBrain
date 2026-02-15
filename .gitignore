@@ -52,22 +52,16 @@ test-results/
 # run logs
 .logs/
 
-# Internal docs (local archive)
-/ref/
-/docs/*-audit-*
-/docs/*-checklist-*
-/docs/*-fix-*
-/docs/*-reaudit-*
-/docs/competitors-*
-/docs/source.json
-/docs/search-tools-plan.md
-
-# AI assistant configs
+# AI assistant workspace (docs, configs, internal notes)
+.claude/
+.cursor/
 CLAUDE.md
 context.md
 next.md
 PLAN.md
-.cursor/
+
+# Internal docs (local archive)
+/ref/
 
 # Local dev docker configs
 docker-compose.dev.yml
