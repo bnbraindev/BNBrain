@@ -1780,29 +1780,38 @@ export const aiTools = {
         let meta = getCachedMetadata(chainId, addr);
 
         if (!meta) {
-          // Fetch from BscScan and auto-cache
+          // Fetch via Sourcify → BscScan fallback chain (handled inside getContractSourceCode)
           const source = await getContractSourceCode(addr, chainId);
           if (!source || !source.sourceCode) {
             return {
               address: addr,
               isVerified: false,
-              message: 'Contract source code not found. The contract may not be verified on the explorer.',
+              message: 'Contract source code not found on Sourcify or BscScan. The contract may not be verified.',
             };
           }
 
-          meta = await saveContractSource(chainId, addr, source);
+          const dataSource = (source as { source?: string }).source;
+          meta = await saveContractSource(chainId, addr, source, { source: dataSource });
 
-          // Also fetch ABI if requested (not in cache flow)
+          // Also fetch ABI if requested and not already from Sourcify
           if (includeAbi) {
-            const abi = await getContractABI(addr, chainId);
+            let abi: string | undefined;
+            if (source.abi) {
+              abi = source.abi;
+            } else {
+              const fetched = await getContractABI(addr, chainId);
+              abi = fetched || undefined;
+            }
             const result: Record<string, unknown> = buildResult(addr, meta);
             result.abi = abi ? JSON.parse(abi) : null;
+            if (dataSource) result.dataSource = dataSource;
             addSourceToResult(result, meta, chainId, addr, includeSource);
             return result;
           }
         }
 
         const result: Record<string, unknown> = buildResult(addr, meta);
+        if (meta.source) result.dataSource = meta.source;
 
         if (includeAbi) {
           const abi = await getContractABI(addr, chainId);

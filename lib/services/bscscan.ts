@@ -286,18 +286,40 @@ export async function getTokenBalance(
 
 /**
  * Get verified contract source code and ABI.
+ *
+ * Fallback chain: Sourcify (free, no key) → Etherscan V2 (paid key).
+ * The `source` field in the returned object indicates which provider succeeded.
  */
 export async function getContractSourceCode(
   address: string,
   chainId: number = 56
-): Promise<ContractSourceCode | null> {
+): Promise<(ContractSourceCode & { source?: string }) | null> {
+  // 1. Try Sourcify first (free, unlimited)
+  try {
+    const { sourcifyGetContractSource } = await import('./sourcify');
+    const sourcifyResult = await sourcifyGetContractSource(address, chainId);
+    if (sourcifyResult && sourcifyResult.sourceCode) {
+      console.log(`[contract.source] sourcify hit for ${address} on chain ${chainId}`);
+      return { ...sourcifyResult, source: 'sourcify' };
+    }
+  } catch (err) {
+    console.warn(`[contract.source] sourcify failed for ${address}:`, err instanceof Error ? err.message : err);
+  }
+
+  // 2. Fallback to Etherscan V2
   const result = await etherscanV2<ContractSourceCodeRaw[]>(chainId, {
     module: 'contract',
     action: 'getsourcecode',
     address,
   });
   const raw = result?.[0];
-  return raw ? normalizeSourceCode(raw) : null;
+  if (raw && raw.SourceCode) {
+    console.log(`[contract.source] bscscan hit for ${address} on chain ${chainId}`);
+    return { ...normalizeSourceCode(raw), source: 'bscscan' };
+  }
+
+  console.log(`[contract.source] no source found for ${address} on chain ${chainId}`);
+  return null;
 }
 
 /**

@@ -36,6 +36,8 @@ export interface ContractSourceMetadata {
   /** Rough token estimate (~3.5 chars per token for Solidity) */
   tokenEstimate: number;
   fetchedAt: string;
+  /** Which data source provided this contract: 'sourcify' | 'bscscan' | undefined (legacy) */
+  source?: string;
 }
 
 interface BscScanSourceResult {
@@ -199,14 +201,17 @@ export function listCachedFiles(chainId: number, address: string): string[] {
 }
 
 /**
- * Save BscScan source code result to local cache.
+ * Save contract source code result to local cache.
  * Parses the source, writes individual files, builds zip, writes metadata.
  * Returns the metadata for immediate use.
+ *
+ * @param options.source - Which data provider supplied this ('sourcify' | 'bscscan')
  */
 export async function saveContractSource(
   chainId: number,
   address: string,
-  result: BscScanSourceResult
+  result: BscScanSourceResult,
+  options?: { source?: string }
 ): Promise<ContractSourceMetadata> {
   const addr = address.toLowerCase();
   const srcDir = sourcesDir(chainId, addr);
@@ -249,6 +254,7 @@ export async function saveContractSource(
     totalSourceChars: totalChars,
     tokenEstimate: Math.ceil(totalChars / 3.5),
     fetchedAt: new Date().toISOString(),
+    source: options?.source,
   };
   fs.writeFileSync(metadataPath(chainId, addr), JSON.stringify(metadata, null, 2));
 
