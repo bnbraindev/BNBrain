@@ -103,9 +103,31 @@ Map GoPlus flags to SecurityItem entries:
 - owner_address → If 0x000...000 (dead), add "所有权已放弃 / Ownership Renounced" as pass
 - Also check: LP lock status, holder concentration from holders data
 
+## Honeypot.is Cross-Validation (when \`honeypot\` data is available)
+
+Honeypot.is uses real-time transaction simulation — it's more reliable than static flag analysis for dynamic honeypots.
+
+Mapping to SecurityItem entries:
+- honeypot.isHoneypot → "蜜罐模拟检测 (Honeypot.is) / Honeypot Simulation (Honeypot.is)" (fail if true, pass if false)
+  - If true, include honeypot.honeypotReason in the detail field
+- honeypot.simulationSuccess → If false, add warning: "交易模拟失败 / Transaction simulation failed"
+
+Cross-validation rules:
+- If GoPlus says NOT honeypot but Honeypot.is says IS honeypot → mark as FAIL (Honeypot.is simulation takes priority)
+- If GoPlus says IS honeypot but Honeypot.is says NOT honeypot → still mark as FAIL (conservative: either source flagging = high risk)
+- If both agree NOT honeypot → mark as PASS
+- Tax cross-validation: Compare honeypot.buyTax/sellTax with GoPlus buy_tax/sell_tax. If discrepancy > 2%, note: "税率数据源差异 / Tax rate discrepancy between sources"
+- honeypot.buyGas or sellGas > 300000 → add note: "高 Gas 消耗 / High gas consumption"
+
+When honeypot data is unavailable (API timeout/error), note "Honeypot.is 不可用，仅依赖 GoPlus / Honeypot.is unavailable, GoPlus only" in honeypot check detail.
+
 ## Risk Score Calculation
 - Start at 30 (baseline)
-- is_honeypot: +40
+- is_honeypot (GoPlus): +40
+- honeypot.isHoneypot (Honeypot.is, if GoPlus missed it): +50
+- honeypot.simulationSuccess false: +15
+- honeypot.buyGas or sellGas > 300000: +5
+- Both sources agree safe (neither honeypot): -5
 - hidden_owner: +15
 - self_destruct: +20
 - cannot_buy or cannot_sell_all: +25

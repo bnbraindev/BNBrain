@@ -1,6 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { tokenSecurity, addressSecurity, phishingSite, dappSecurity, signatureDecode, nftSecurity, approvalSecurity } from '@/lib/services/goplus';
+import { honeypotCheck } from '@/lib/services/honeypot';
 import { getTokenPrice, getLatestTokens, searchToken } from '@/lib/services/dexscreener';
 import { getPublicClient } from '@/lib/chain/server-client';
 import { ERC20_ABI } from '@/lib/utils/constants';
@@ -319,7 +320,7 @@ function addSourceToResult(
 
 export const aiTools = {
   tokenSecurity: tool({
-    description: 'Check if a token/coin is safe. Detects honeypots, hidden mints, blacklists, holder concentration, and more.',
+    description: 'Check if a token/coin is safe. Detects honeypots, hidden mints, blacklists, holder concentration, and more. Cross-validates honeypot detection with Honeypot.is simulation.',
     inputSchema: z.object({
       address: z.string().describe('The token contract address to check'),
       chainId: z.number().optional().default(56).describe('Chain ID (56=BSC, 97=BSC Testnet, 204=opBNB)'),
@@ -329,7 +330,48 @@ export const aiTools = {
         if (!isAddress(address)) {
           return { error: 'Invalid token contract address' };
         }
-        return await tokenSecurity(address, chainId);
+        // Parallel: GoPlus + Honeypot.is
+        const [goplusResult, honeypotResult] = await Promise.allSettled([
+          tokenSecurity(address, chainId),
+          honeypotCheck(address, chainId),
+        ]);
+
+        if (goplusResult.status === 'rejected') {
+          return { error: goplusResult.reason instanceof Error ? goplusResult.reason.message : 'Token security check failed' };
+        }
+        const goplus = goplusResult.value;
+
+        // Merge honeypot.is result as cross-validation
+        let honeypotIs: {
+          available: boolean;
+          isHoneypot?: boolean;
+          honeypotReason?: string | null;
+          simulationSuccess?: boolean;
+          buyTax?: number;
+          sellTax?: number;
+          buyGas?: number;
+          sellGas?: number;
+          riskLevel?: string;
+          flags?: Array<{ flag: string; description: string; severity: string }>;
+        } = { available: false };
+
+        if (honeypotResult.status === 'fulfilled') {
+          const hp = honeypotResult.value;
+          honeypotIs = {
+            available: true,
+            isHoneypot: hp.isHoneypot,
+            honeypotReason: hp.honeypotReason,
+            simulationSuccess: hp.simulationSuccess,
+            buyTax: hp.buyTax,
+            sellTax: hp.sellTax,
+            buyGas: hp.buyGas,
+            sellGas: hp.sellGas,
+            riskLevel: hp.riskLevel,
+            flags: hp.flags,
+          };
+        }
+
+        return { ...goplus, honeypotIs };
       } catch (error) {
         return { error: error instanceof Error ? error.message : 'Token security check failed' };
       }
@@ -2090,6 +2132,7 @@ export const aiTools = {
 
       // Declare mutable state BEFORE any closures that reference them (avoids TDZ in minified builds)
       let securityData: Record<string, unknown> | null = null;
+      let honeypotData: Record<string, unknown> | null = null;
       let contractData: Record<string, unknown> | null = null;
       let marketData: Record<string, unknown> | null = null;
       let tokenName: string | null = null;
@@ -2099,6 +2142,7 @@ export const aiTools = {
       // All step definitions for progress tracking
       const ALL_STEPS: StepProgress[] = [
         { key: 'security', label: 'Token Security Scan', status: 'pending' },
+        { key: 'honeypot', label: 'Honeypot.is Simulation', status: 'pending' },
         { key: 'contract', label: 'Contract Audit', status: 'pending' },
         { key: 'market', label: 'Market Data', status: 'pending' },
         { key: 'search', label: 'Web & Social Search', status: 'pending' },
@@ -2130,17 +2174,19 @@ export const aiTools = {
       // ── Phase 1: Parallel data collection ──
       emitProgress('phase1', {
         security: { status: 'running' },
+        honeypot: { status: 'running' },
         contract: { status: 'running' },
         market: { status: 'running' },
       });
 
       const phase1Start = Date.now();
-      const [secResult, contractResult, marketResult] = await Promise.allSettled([
+      const [secResult, hpResult, contractResult, marketResult] = await Promise.allSettled([
         tokenSecurity(addr, chainId),
+        honeypotCheck(addr, chainId),
         getContractSourceCode(addr, chainId),
         getTokenPrice(addr, chainId),
       ]);
-      log(`Phase1 done (${Date.now() - phase1Start}ms): goplus=${secResult.status} bscscan=${contractResult.status} dex=${marketResult.status}`);
+      log(`Phase1 done (${Date.now() - phase1Start}ms): goplus=${secResult.status} honeypot=${hpResult.status} bscscan=${contractResult.status} dex=${marketResult.status}`);
       const p1dur = Date.now() - phase1Start;
 
       if (secResult.status === 'fulfilled') {
@@ -2166,6 +2212,36 @@ export const aiTools = {
       } else {
         steps.push({ key: 'security', label: 'Token Security Scan', status: 'failed',
           summary: 'Security data unavailable', durationMs: Date.now() - phase1Start });
+      }
+
+      // Honeypot.is result
+      if (hpResult.status === 'fulfilled') {
+        const hp = hpResult.value;
+        honeypotData = {
+          isHoneypot: hp.isHoneypot,
+          honeypotReason: hp.honeypotReason,
+          simulationSuccess: hp.simulationSuccess,
+          buyTax: hp.buyTax,
+          sellTax: hp.sellTax,
+          transferTax: hp.transferTax,
+          buyGas: hp.buyGas,
+          sellGas: hp.sellGas,
+          riskLevel: hp.riskLevel,
+          riskScore: hp.riskScore,
+          flags: hp.flags,
+          holderAnalysis: hp.holderAnalysis,
+          contractCode: hp.contractCode,
+        };
+        if (!tokenName && hp.tokenName) tokenName = hp.tokenName;
+        if (!tokenSymbol && hp.tokenSymbol) tokenSymbol = hp.tokenSymbol;
+        steps.push({ key: 'honeypot', label: 'Honeypot.is Simulation', status: 'completed',
+          summary: hp.isHoneypot
+            ? `HONEYPOT: ${hp.honeypotReason ?? 'detected'}`
+            : `Safe — B:${(hp.buyTax * 100).toFixed(1)}% S:${(hp.sellTax * 100).toFixed(1)}%`,
+          durationMs: Date.now() - phase1Start });
+      } else {
+        steps.push({ key: 'honeypot', label: 'Honeypot.is Simulation', status: 'failed',
+          summary: 'Honeypot check unavailable', durationMs: Date.now() - phase1Start });
       }
 
       if (contractResult.status === 'fulfilled' && contractResult.value?.sourceCode) {
@@ -2211,6 +2287,11 @@ export const aiTools = {
         security: {
           status: secResult.status === 'fulfilled' ? 'completed' : 'failed',
           summary: steps.find((s) => s.key === 'security')?.summary ?? undefined,
+          durationMs: p1dur,
+        },
+        honeypot: {
+          status: hpResult.status === 'fulfilled' ? 'completed' : 'failed',
+          summary: steps.find((s) => s.key === 'honeypot')?.summary ?? undefined,
           durationMs: p1dur,
         },
         contract: {
@@ -2396,7 +2477,7 @@ export const aiTools = {
 
         const dataPayload = JSON.stringify({
           tokenAddress: addr, chainId, tokenName, tokenSymbol,
-          security: securityData, contract: contractData, market: marketData,
+          security: securityData, honeypot: honeypotData, contract: contractData, market: marketData,
           search: {
             general: searchResults.general.slice(0, 10),
             twitter: searchResults.twitter.slice(0, 10),
