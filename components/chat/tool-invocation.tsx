@@ -32,6 +32,7 @@ import { BinanceTickerCard } from '@/components/results/binance-ticker-card';
 import { KlineChartCard } from '@/components/results/kline-chart-card';
 import { TechnicalAnalysisCard } from '@/components/results/technical-analysis-card';
 import { DeepAnalysisCard } from '@/components/results/deep-analysis-card';
+import { ContractVerificationCard } from '@/components/results/contract-verification-card';
 
 type ToolPart = Parameters<typeof getToolName>[0];
 type SecurityReportData = ComponentProps<typeof SecurityReport>['data'];
@@ -62,6 +63,7 @@ type BinanceTickerCardData = ComponentProps<typeof BinanceTickerCard>['data'];
 type KlineChartCardData = ComponentProps<typeof KlineChartCard>['data'];
 type TechnicalAnalysisCardData = ComponentProps<typeof TechnicalAnalysisCard>['data'];
 type DeepAnalysisCardData = ComponentProps<typeof DeepAnalysisCard>['data'];
+type ContractVerificationCardData = ComponentProps<typeof ContractVerificationCard>['data'];
 
 // ── i18n: tool labels ──────────────────────────────────────────
 
@@ -98,6 +100,7 @@ const TOOL_LABELS_EN: Record<string, string> = {
   binanceKlines: 'K-line chart',
   technicalAnalysis: 'Technical analysis',
   deepTokenAnalysis: 'Deep analysis',
+  verifyContract: 'Contract verification',
 };
 
 const TOOL_LABELS_ZH: Record<string, string> = {
@@ -133,6 +136,7 @@ const TOOL_LABELS_ZH: Record<string, string> = {
   binanceKlines: 'K线图',
   technicalAnalysis: '技术分析',
   deepTokenAnalysis: '深度分析',
+  verifyContract: '合约验证',
 };
 
 const LOADING_LABELS_EN: Record<string, string> = {
@@ -168,6 +172,7 @@ const LOADING_LABELS_EN: Record<string, string> = {
   binanceKlines: 'Loading K-line data…',
   technicalAnalysis: 'Computing indicators…',
   deepTokenAnalysis: 'Running deep analysis…',
+  verifyContract: 'Verifying contract…',
 };
 
 const LOADING_LABELS_ZH: Record<string, string> = {
@@ -203,6 +208,7 @@ const LOADING_LABELS_ZH: Record<string, string> = {
   binanceKlines: '正在加载K线数据…',
   technicalAnalysis: '正在计算技术指标…',
   deepTokenAnalysis: '正在进行深度分析…',
+  verifyContract: '正在验证合约…',
 };
 
 function getToolLabel(toolName: string, locale: string): string {
@@ -327,6 +333,16 @@ function getLoadingContext(toolName: string, input: Record<string, unknown> | un
       const addr = input.tokenAddress as string | undefined;
       if (!addr) return null;
       return <span className="ml-1 font-mono text-xs text-muted-foreground/60">{shortenAddr(addr)}</span>;
+    }
+    case 'verifyContract': {
+      const addr = input.address as string | undefined;
+      const name = input.contractName as string | undefined;
+      if (!addr) return null;
+      return (
+        <span className="ml-1 text-xs text-muted-foreground/60">
+          {name ? `${name} ` : ''}{shortenAddr(addr)}
+        </span>
+      );
     }
     case 'binanceTicker':
     case 'binanceKlines':
@@ -498,6 +514,14 @@ function getToolSummary(toolName: string, output: Record<string, unknown>, local
         return `${label}: ${score}/100 (${risk})`;
       }
       return label;
+    }
+    case 'verifyContract': {
+      const status = output.verificationStatus as string;
+      const name = output.contractName as string;
+      const label = name || (locale === 'zh' ? '合约' : 'Contract');
+      if (status === 'verified') return locale === 'zh' ? `${label}: 已验证` : `${label}: Verified`;
+      if (status === 'timeout') return locale === 'zh' ? `${label}: 超时` : `${label}: Timed out`;
+      return locale === 'zh' ? `${label}: 失败` : `${label}: Failed`;
     }
     default:
       return locale === 'zh' ? '完成' : 'Done';
@@ -781,6 +805,8 @@ function renderFullCard(
       return <TechnicalAnalysisCard data={output as unknown as TechnicalAnalysisCardData} />;
     case 'deepTokenAnalysis':
       return <DeepAnalysisCard data={output as unknown as DeepAnalysisCardData} chatId={conversationId} />;
+    case 'verifyContract':
+      return <ContractVerificationCard data={output as unknown as ContractVerificationCardData} />;
     default:
       return <FallbackResult data={output} />;
   }

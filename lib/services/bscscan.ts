@@ -495,6 +495,113 @@ export async function scanApprovalEvents(
   }
 }
 
+// ── Contract verification ───────────────────────────────────
+
+export interface VerifyContractInput {
+  address: string;
+  sourceCode: string;
+  contractName: string;
+  compilerVersion: string;
+  optimizationUsed: boolean;
+  runs?: number;
+  constructorArguments?: string;
+  evmVersion?: string;
+  licenseType?: number;
+  chainId?: number;
+}
+
+/**
+ * Submit contract source code for verification on BscScan/Etherscan.
+ * Returns a GUID that can be used to poll verification status.
+ * Uses POST (required by the verification API).
+ */
+export async function verifyContractSource(
+  input: VerifyContractInput
+): Promise<{ guid: string } | { error: string }> {
+  const chainId = input.chainId ?? 56;
+  if (!(await isV2Supported(chainId))) {
+    return { error: 'Etherscan V2 not supported for this chain or missing API key' };
+  }
+
+  const formParams = new URLSearchParams({
+    chainid: String(chainId),
+    apikey: await getApiKey(),
+    module: 'contract',
+    action: 'verifysourcecode',
+    contractaddress: input.address,
+    sourceCode: input.sourceCode,
+    codeformat: 'solidity-single-file',
+    contractname: input.contractName,
+    compilerversion: input.compilerVersion,
+    optimizationUsed: input.optimizationUsed ? '1' : '0',
+    runs: String(input.runs ?? 200),
+    constructorArguements: input.constructorArguments ?? '',
+    evmversion: input.evmVersion ?? '',
+    licenseType: String(input.licenseType ?? 0),
+  });
+
+  try {
+    const data = await withDataSource('etherscan-v2', () =>
+      serviceFetch<EtherscanV2Response<string>>(
+        ETHERSCAN_V2_BASE,
+        {
+          service: SERVICE,
+          timeoutMs: 30_000,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formParams.toString(),
+        }
+      )
+    );
+    if (data.status === '1' && data.result) {
+      return { guid: data.result };
+    }
+    return { error: String(data.result || data.message || 'Unknown verification error') };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Verification request failed' };
+  }
+}
+
+/**
+ * Check the status of a previously submitted contract verification.
+ * Returns 'Pass', 'Pending', 'Fail', or an error message.
+ */
+export async function checkVerificationStatus(
+  guid: string,
+  chainId: number = 56
+): Promise<{ status: 'pass' | 'pending' | 'fail'; message: string }> {
+  if (!(await isV2Supported(chainId))) {
+    return { status: 'fail', message: 'Etherscan V2 not supported' };
+  }
+
+  try {
+    const apiKey = await getApiKey();
+    const data = await withDataSource('etherscan-v2', () =>
+      serviceFetch<EtherscanV2Response<string>>(
+        `${ETHERSCAN_V2_BASE}?${new URLSearchParams({
+          chainid: String(chainId),
+          apikey: apiKey,
+          module: 'contract',
+          action: 'checkverifystatus',
+          guid,
+        })}`,
+        { service: SERVICE, timeoutMs: 15_000 }
+      )
+    );
+
+    const result = (data.result ?? '').toLowerCase();
+    if (result.includes('pass')) {
+      return { status: 'pass', message: data.result ?? 'Verified' };
+    }
+    if (result.includes('pending') || result.includes('queue')) {
+      return { status: 'pending', message: data.result ?? 'Pending in queue' };
+    }
+    return { status: 'fail', message: data.result ?? 'Verification failed' };
+  } catch (err) {
+    return { status: 'fail', message: err instanceof Error ? err.message : 'Status check failed' };
+  }
+}
+
 // ── RPC fallback for transaction history ────────────────────
 
 interface TransferLogArgs {

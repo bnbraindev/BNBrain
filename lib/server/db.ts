@@ -6,7 +6,7 @@ declare global {
   var __bnbrainSchemaVersion: number | undefined;
 }
 
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 function resolveDatabaseUrl(): string {
   const directUrl = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
@@ -298,6 +298,10 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await pool.query(`
         ALTER TABLE chat_runs
         ADD COLUMN IF NOT EXISTS progress_json JSONB;
+      `);
+      await pool.query(`
+        ALTER TABLE reports
+        ADD COLUMN IF NOT EXISTS report_type TEXT NOT NULL DEFAULT 'deep_analysis';
       `);
       } catch (error) {
         globalThis.__bnbrainSchemaReady = undefined;

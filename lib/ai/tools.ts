@@ -789,6 +789,74 @@ export const aiTools = {
     },
   }),
 
+  verifyContract: tool({
+    description:
+      'Submit a deployed contract for source code verification on BscScan/Etherscan. ' +
+      'Call this after a contract deploy transaction succeeds. ' +
+      'Provides the source code, compiler settings, and contract address. ' +
+      'Polls for verification status (up to 2 minutes) and generates a verification report.',
+    inputSchema: z.object({
+      address: z.string().describe('Deployed contract address'),
+      sourceCode: z.string().describe('Full Solidity source code used for compilation'),
+      contractName: z.string().describe('Name of the contract to verify'),
+      constructorArguments: z.string().optional().default('').describe('ABI-encoded constructor arguments (hex, no 0x prefix)'),
+      chainId: z.number().optional().default(56),
+    }),
+    execute: async ({ address, sourceCode, contractName, constructorArguments, chainId }) => {
+      try {
+        if (!isAddress(address)) {
+          return { error: 'Invalid contract address' };
+        }
+
+        const { runContractVerification } = await import('@/lib/server/contract-verification');
+        const ctx = getChatRunContext();
+
+        const result = await runContractVerification(
+          {
+            address: normalizeAddress(address),
+            sourceCode,
+            contractName,
+            compilerVersion: 'v0.8.33+commit.64118f21',
+            optimizationUsed: true,
+            runs: 200,
+            constructorArguments: constructorArguments ?? '',
+            chainId,
+          },
+          {
+            conversationId: ctx?.chatId,
+            tokenName: contractName,
+            callbacks: {
+              onProgress: (step, status) => {
+                console.log(`[verify-contract] ${step}: ${status}`);
+              },
+            },
+          }
+        );
+
+        return {
+          type: 'contract_verification' as const,
+          address: normalizeAddress(address),
+          contractName,
+          chainId,
+          verificationStatus: result.status,
+          message: result.message,
+          guid: result.guid,
+          reportId: result.reportId,
+          reportUrl: result.reportUrl,
+          durationMs: result.durationMs,
+          steps: result.steps,
+        };
+      } catch (error) {
+        return {
+          error:
+            error instanceof Error
+              ? `Contract verification failed: ${error.message}`
+              : 'Contract verification failed',
+        };
+      }
+    },
+  }),
+
   buildSwap: tool({
     description: 'Build a swap transaction using PancakeSwap V2. Gets a quote and returns unsigned transaction data. Supports exact input ("I want to sell X") and exact output ("I want to buy exactly Y") modes.',
     inputSchema: z.object({

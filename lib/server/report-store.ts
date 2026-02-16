@@ -9,6 +9,8 @@ export interface ReportStep {
   durationMs: number;
 }
 
+export type ReportType = 'deep_analysis' | 'contract_verification';
+
 export interface ReportRecord {
   id: string;
   conversationId: string | null;
@@ -20,6 +22,7 @@ export interface ReportRecord {
   summary: string;
   riskScore: number | null;
   steps: ReportStep[];
+  reportType: ReportType;
   createdAt: number;
 }
 
@@ -33,6 +36,7 @@ export interface CreateReportInput {
   summary: string;
   riskScore?: number | null;
   steps: ReportStep[];
+  reportType?: ReportType;
 }
 
 function parseReportRow(row: Record<string, unknown>): ReportRecord {
@@ -47,6 +51,7 @@ function parseReportRow(row: Record<string, unknown>): ReportRecord {
     summary: String(row.summary ?? ''),
     riskScore: typeof row.risk_score === 'number' ? row.risk_score : row.risk_score != null ? Number(row.risk_score) : null,
     steps: Array.isArray(row.steps) ? (row.steps as ReportStep[]) : [],
+    reportType: (row.report_type === 'contract_verification' ? 'contract_verification' : 'deep_analysis') as ReportType,
     createdAt: Number(row.created_at),
   };
 }
@@ -60,9 +65,9 @@ export async function createReport(input: CreateReportInput): Promise<ReportReco
     `
       INSERT INTO reports (
         id, conversation_id, token_address, token_name, token_symbol,
-        chain_id, html, summary, risk_score, steps, created_at
+        chain_id, html, summary, risk_score, steps, report_type, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)
       RETURNING *
     `,
     [
@@ -76,6 +81,7 @@ export async function createReport(input: CreateReportInput): Promise<ReportReco
       input.summary,
       input.riskScore ?? null,
       JSON.stringify(input.steps),
+      input.reportType ?? 'deep_analysis',
       now,
     ]
   );
