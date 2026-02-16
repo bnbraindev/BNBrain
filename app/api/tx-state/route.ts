@@ -7,6 +7,7 @@ import {
 } from '@/lib/server/tx-state-store';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
 import { getConversationByOwnerAndId } from '@/lib/server/conversation-store';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -82,6 +83,11 @@ const TxStateUpsertSchema = z.object({
 });
 
 export async function GET(req: Request) {
+  const ip = getRequestIpAddress(req);
+  const rl = await checkRateLimit({ key: `tx-state:ip:${ip}`, limit: 60, windowMs: 60_000 });
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429 });
+  }
   const owner = readOwnerFromHeaders(req);
   if (!owner) {
     return Response.json({ error: 'Owner identity is required' }, { status: 400 });
@@ -118,6 +124,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const ip = getRequestIpAddress(req);
+  const rlPost = await checkRateLimit({ key: `tx-state:ip:${ip}`, limit: 60, windowMs: 60_000 });
+  if (!rlPost.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429 });
+  }
   const owner = readOwnerFromHeaders(req);
   if (!owner) {
     return Response.json({ error: 'Owner identity is required' }, { status: 400 });

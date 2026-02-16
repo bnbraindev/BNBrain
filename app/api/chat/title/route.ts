@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { apiErrorResponse } from '@/lib/errors/api-error';
 import { getChatModel, toModelMessages } from '@/lib/server/chat-runtime';
 import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
+import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
 
 export const runtime = 'nodejs';
 
@@ -64,6 +65,15 @@ export async function POST(req: Request) {
       { code: 'UNAUTHORIZED', message: 'Missing owner identity headers', retryable: false },
       401
     );
+  }
+  if (ownerType === 'wallet') {
+    const session = await getWalletAuthSessionFromRequest(req);
+    if (!session || session.address !== ownerId.toLowerCase()) {
+      return apiErrorResponse(
+        { code: 'UNAUTHORIZED', message: 'Wallet session required', retryable: false },
+        401
+      );
+    }
   }
 
   const ip = getRequestIpAddress(req);

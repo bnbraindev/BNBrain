@@ -405,6 +405,11 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
     setAuthenticatedAddress,
   ]);
 
+  const authenticatedAddressRef = useRef(authenticatedAddress);
+  authenticatedAddressRef.current = authenticatedAddress;
+  const sessionStateRef = useRef(sessionState);
+  sessionStateRef.current = sessionState;
+
   useEffect(() => {
     let cancelled = false;
     const syncWalletSession = async () => {
@@ -418,7 +423,7 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
           return;
         }
 
-        const addressToClear = authenticatedAddress ?? sessionState?.address ?? null;
+        const addressToClear = authenticatedAddressRef.current ?? sessionStateRef.current?.address ?? null;
         if (addressToClear) {
           clearWalletConversations(addressToClear);
         }
@@ -450,8 +455,6 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [
-    authenticatedAddress,
-    sessionState?.address,
     setAuthenticatedAddress,
     clearWalletConversations,
   ]);

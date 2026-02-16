@@ -1,5 +1,6 @@
 import { serviceFetch } from '@/lib/services/http-client';
 import { resolveSteelConfig } from '@/lib/server/setup-store';
+import { validateUrlSafety } from '@/lib/server/url-safety';
 
 export interface ScrapeResult {
   markdown: string;
@@ -20,6 +21,10 @@ export interface WebSearchOptions {
 }
 
 export async function scrapePage(url: string, delayMs?: number): Promise<ScrapeResult> {
+  const urlError = validateUrlSafety(url);
+  if (urlError) {
+    return { markdown: '', title: null, links: [] };
+  }
   const steelConfig = await resolveSteelConfig();
   if (!steelConfig) {
     return { markdown: '', title: null, links: [] };

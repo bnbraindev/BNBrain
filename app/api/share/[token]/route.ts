@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { getConversationByShareToken } from '@/lib/server/conversation-store';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,11 @@ export async function GET(
   _req: Request,
   context: { params: Promise<{ token: string }> }
 ) {
+  const ip = getRequestIpAddress(_req);
+  const rl = await checkRateLimit({ key: `share-get:ip:${ip}`, limit: 30, windowMs: 60_000 });
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429 });
+  }
   const { token: rawToken } = await context.params;
   const parsedToken = ShareTokenSchema.safeParse(rawToken);
   if (!parsedToken.success) {

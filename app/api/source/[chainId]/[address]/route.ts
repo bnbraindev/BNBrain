@@ -19,6 +19,7 @@ import {
   saveContractSource,
 } from '@/lib/server/contract-source-cache';
 import { getContractSourceCode } from '@/lib/services/bscscan';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 
 interface RouteParams {
   params: Promise<{ chainId: string; address: string }>;
@@ -35,6 +36,11 @@ async function ensureCached(chainId: number, address: string): Promise<boolean> 
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  const ip = getRequestIpAddress(request);
+  const rl = await checkRateLimit({ key: `source:ip:${ip}`, limit: 30, windowMs: 60_000 });
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
   const { chainId: chainIdStr, address } = await params;
   const chainId = parseInt(chainIdStr, 10);
 

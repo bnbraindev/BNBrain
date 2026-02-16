@@ -30,9 +30,11 @@ export function readNormalizedAdminAddress(value: string | null | undefined): st
 
 export async function isAuthorizedAdmin(
   token: string | null | undefined,
-  sessionAddress: string | null | undefined
+  sessionAddress: string | null | undefined,
+  sessionPurpose?: string | null
 ): Promise<boolean> {
   if (isValidAdminToken(token)) return true;
+  if (sessionPurpose !== 'admin') return false;
   const normalizedAddress = readNormalizedAdminAddress(sessionAddress);
   if (!normalizedAddress) return false;
   return isAdminWalletAddress(normalizedAddress);
@@ -40,7 +42,8 @@ export async function isAuthorizedAdmin(
 
 export async function getAdminAuthContext(
   token: string | null | undefined,
-  sessionAddress: string | null | undefined
+  sessionAddress: string | null | undefined,
+  sessionPurpose?: string | null
 ): Promise<{
   authorized: boolean;
   adminWalletAddress: string | null;
@@ -54,7 +57,7 @@ export async function getAdminAuthContext(
   const [adminWalletAddress, adminWalletAddresses, authorized] = await Promise.all([
     getAdminWalletAddress(),
     getAdminWalletAddresses(),
-    isAuthorizedAdmin(token, sessionAddress),
+    isAuthorizedAdmin(token, sessionAddress, sessionPurpose),
   ]);
   return {
     authorized,

@@ -6,6 +6,7 @@ import {
   type ConversationOwner,
 } from '@/lib/server/conversation-store';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 import type { Conversation } from '@/lib/stores/chat-store';
 
 export const runtime = 'nodejs';
@@ -60,6 +61,11 @@ export async function POST(
   req: Request,
   context: { params: Promise<{ token: string }> }
 ) {
+  const ip = getRequestIpAddress(req);
+  const rl = await checkRateLimit({ key: `share-fork:ip:${ip}`, limit: 10, windowMs: 60_000 });
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429 });
+  }
   const { token: rawToken } = await context.params;
   const parsedToken = ShareTokenSchema.safeParse(rawToken);
   if (!parsedToken.success) {

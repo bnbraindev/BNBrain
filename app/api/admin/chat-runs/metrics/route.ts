@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   const token = resolveToken(req);
   const session = await getWalletAuthSessionFromRequest(req);
   const requestIp = getRequestIpAddress(req);
-  const authContext = await getAdminAuthContext(token, session?.address ?? null);
+  const authContext = await getAdminAuthContext(token, session?.address ?? null, session?.purpose ?? null);
   if (!authContext.authorized) {
     await writeSecurityAuditLog({
       eventType: 'admin_chat_run_metrics',

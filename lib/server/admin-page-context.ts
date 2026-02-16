@@ -27,7 +27,7 @@ export async function resolveAdminPageContext(
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(AUTH_SESSION_COOKIE_NAME)?.value;
   const walletSession = await getWalletAuthSessionFromToken(sessionToken);
-  const authContext = await getAdminAuthContext(token, walletSession?.address ?? null);
+  const authContext = await getAdminAuthContext(token, walletSession?.address ?? null, walletSession?.purpose ?? null);
   const hasAdminWalletSession = Boolean(
     walletSession &&
       authContext.adminWalletAddresses.includes(walletSession.address)

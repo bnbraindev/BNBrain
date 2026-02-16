@@ -814,6 +814,11 @@ export const useChatStore = create<ChatState>()(
       onRehydrateStorage: () => (state, error) => {
         void error;
         if (state) {
+          // Validate that the session-restored activeConversationId still exists
+          const sessionId = state.activeConversationId;
+          if (sessionId && !state.conversations.some((c) => c.id === sessionId)) {
+            state.activeConversationId = null;
+          }
           state.setHasHydrated(true);
           return;
         }

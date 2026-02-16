@@ -3,6 +3,7 @@ import { isSetupCompleted } from '@/lib/server/setup-store';
 import { isAuthorizedAdmin, readBearerToken } from '@/lib/server/admin-auth';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
 import { validateUrlSafety } from '@/lib/server/url-safety';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 
 const VALIDATION_TIMEOUT_MS = 12_000;
 
@@ -14,13 +15,21 @@ const VALIDATION_TIMEOUT_MS = 12_000;
  */
 export async function POST(request: NextRequest) {
   try {
+    const ip = getRequestIpAddress(request);
+    const rl = await checkRateLimit({ key: `setup-validate:ip:${ip}`, limit: 10, windowMs: 60_000 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { valid: false, message: 'Too many validation requests. Please retry shortly.' },
+        { status: 429 }
+      );
+    }
     const completed = await isSetupCompleted();
 
     // After initial setup, require admin authorization
     if (completed) {
       const token = readBearerToken(request.headers.get('authorization'));
       const session = await getWalletAuthSessionFromRequest(request);
-      const authorized = await isAuthorizedAdmin(token, session?.address ?? null);
+      const authorized = await isAuthorizedAdmin(token, session?.address ?? null, session?.purpose ?? null);
       if (!authorized) {
         return NextResponse.json(
           { valid: false, message: 'Unauthorized' },

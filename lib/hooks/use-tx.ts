@@ -127,6 +127,14 @@ export function useTransactionExecutor(options?: UseTransactionExecutorOptions) 
 
   useEffect(() => {
     if (!shouldSync) return;
+    // Skip initial fetch if local cache is already in a terminal state
+    if (cacheKey) {
+      const cached = txStateCache.get(cacheKey);
+      if (cached && (cached.status === 'success' || cached.status === 'error' || cached.status === 'cancelled')) {
+        initialSyncRef.current = false;
+        return;
+      }
+    }
     let cancelled = false;
 
     const syncFromServer = async () => {

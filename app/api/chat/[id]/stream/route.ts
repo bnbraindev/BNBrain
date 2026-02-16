@@ -6,6 +6,7 @@ import {
 import { createChatRunUIMessageStream } from '@/lib/server/chat-run-stream';
 import { getActiveChatRunByChatOwner } from '@/lib/server/chat-run-store';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,29 +69,39 @@ export async function GET(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id: chatId } = await context.params;
-  const owner = await resolveReconnectOwner(req, chatId);
-  if (!owner) {
-    return Response.json(
-      { error: 'Missing owner context for reconnect' },
-      { status: 400 }
-    );
+  try {
+    const ip = getRequestIpAddress(req);
+    const rl = await checkRateLimit({ key: `stream-reconnect:ip:${ip}`, limit: 30, windowMs: 60_000 });
+    if (!rl.allowed) {
+      return Response.json({ error: 'Too many requests' }, { status: 429 });
+    }
+    const { id: chatId } = await context.params;
+    const owner = await resolveReconnectOwner(req, chatId);
+    if (!owner) {
+      return Response.json(
+        { error: 'Missing owner context for reconnect' },
+        { status: 400 }
+      );
+    }
+    const authError = await assertOwnerAuthorized(req, owner);
+    if (authError) return authError;
+
+    const run = await getActiveChatRunByChatOwner(chatId, owner);
+    if (!run) {
+      return new Response(null, { status: 204 });
+    }
+
+    const afterSeqHeader = req.headers.get('x-bnb-after-seq');
+    const afterSeq = afterSeqHeader ? Math.max(0, parseInt(afterSeqHeader, 10) || 0) : 0;
+
+    return createUIMessageStreamResponse({
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+      stream: createChatRunUIMessageStream(run.id, { afterSeq }),
+    });
+  } catch (error) {
+    console.error('[chat stream reconnect GET]', error);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
-  const authError = await assertOwnerAuthorized(req, owner);
-  if (authError) return authError;
-
-  const run = await getActiveChatRunByChatOwner(chatId, owner);
-  if (!run) {
-    return new Response(null, { status: 204 });
-  }
-
-  const afterSeqHeader = req.headers.get('x-bnb-after-seq');
-  const afterSeq = afterSeqHeader ? Math.max(0, parseInt(afterSeqHeader, 10) || 0) : 0;
-
-  return createUIMessageStreamResponse({
-    headers: {
-      'Cache-Control': 'no-store',
-    },
-    stream: createChatRunUIMessageStream(run.id, { afterSeq }),
-  });
 }

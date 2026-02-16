@@ -8,6 +8,7 @@ import {
   requestChatRunCancellation,
 } from '@/lib/server/chat-run-store';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -75,6 +76,11 @@ export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const ip = getRequestIpAddress(req);
+  const rl = await checkRateLimit({ key: `cancel:ip:${ip}`, limit: 20, windowMs: 60_000 });
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429 });
+  }
   const { id: chatId } = await context.params;
   let ownerFromBody: ChatOwner | undefined;
   try {

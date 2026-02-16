@@ -87,7 +87,7 @@ async function assertAuthorizedAdminRequest(req: Request): Promise<
   const token = resolveToken(req);
   const session = await getWalletAuthSessionFromRequest(req);
   const requestIp = getRequestIpAddress(req);
-  const authContext = await getAdminAuthContext(token, session?.address ?? null);
+  const authContext = await getAdminAuthContext(token, session?.address ?? null, session?.purpose ?? null);
   const authMode: 'token' | 'wallet' = token ? 'token' : 'wallet';
 
   if (!authContext.authorized) {

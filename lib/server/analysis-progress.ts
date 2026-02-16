@@ -117,6 +117,14 @@ export function setAnalysisProgress(
         map.delete(key);
       }
     }
+    // Hard cap: if still over limit, evict oldest entries
+    if (map.size > 500) {
+      const entries = [...map.entries()].sort((a, b) => a[1].updatedAt - b[1].updatedAt);
+      const excess = map.size - 500;
+      for (let i = 0; i < excess; i++) {
+        map.delete(entries[i][0]);
+      }
+    }
   }
   // Async persist to DB
   scheduleDbWrite(chatId);

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { ensureDatabaseSchema, getDbPool } from '@/lib/server/db';
+import { isPrivateHost } from '@/lib/server/url-safety';
 
 const CHAT_MODELS_SETTING_KEY = 'chat_models_config_v1';
 const CHAT_MODELS_SETTING_VERSION = 1;
@@ -116,18 +117,8 @@ function normalizeAuthMode(
   return protocol === 'openai' ? 'bearer' : 'x-api-key';
 }
 
-function isPrivateHostname(hostname: string): boolean {
-  const lower = hostname.toLowerCase();
-  if (lower === 'localhost' || lower === '127.0.0.1' || lower === '::1') return true;
-  if (lower === '[::1]') return true;
-  if (lower.endsWith('.local') || lower.endsWith('.internal')) return true;
-  if (/^10\./.test(lower)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(lower)) return true;
-  if (/^192\.168\./.test(lower)) return true;
-  if (/^169\.254\./.test(lower)) return true;
-  if (lower === '0.0.0.0') return true;
-  return false;
-}
+/** @deprecated Use isPrivateHost from url-safety.ts instead. Kept as alias. */
+const isPrivateHostname = isPrivateHost;
 
 function normalizeBaseUrl(raw: string, protocol: ChatModelProtocol): string {
   const trimmed = raw.trim().replace(/\/+$/, '');

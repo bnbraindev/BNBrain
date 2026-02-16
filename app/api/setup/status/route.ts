@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     if (completed) {
       const token = readBearerToken(request.headers.get('authorization'));
       const session = await getWalletAuthSessionFromRequest(request);
-      const authorized = await isAuthorizedAdmin(token, session?.address ?? null);
+      const authorized = await isAuthorizedAdmin(token, session?.address ?? null, session?.purpose ?? null);
       if (!authorized) {
         return NextResponse.json({ completed, hasModels });
       }

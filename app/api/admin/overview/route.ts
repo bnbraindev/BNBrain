@@ -1,7 +1,7 @@
 import { getAdminOverviewData } from '@/lib/server/admin-store';
 import { getAdminAuthContext, readBearerToken } from '@/lib/server/admin-auth';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
-import { getRequestIpAddress } from '@/lib/server/rate-limit';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 import { writeSecurityAuditLog } from '@/lib/server/security-audit';
 
 export const runtime = 'nodejs';
@@ -16,10 +16,14 @@ function resolveToken(req: Request): string | null {
 }
 
 export async function GET(req: Request) {
+  const requestIp = getRequestIpAddress(req);
+  const rl = await checkRateLimit({ key: `admin-overview:ip:${requestIp}`, limit: 20, windowMs: 60_000 });
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Cache-Control': 'no-store' } });
+  }
   const token = resolveToken(req);
   const session = await getWalletAuthSessionFromRequest(req);
-  const requestIp = getRequestIpAddress(req);
-  const authContext = await getAdminAuthContext(token, session?.address ?? null);
+  const authContext = await getAdminAuthContext(token, session?.address ?? null, session?.purpose ?? null);
   if (!authContext.authorized) {
     await writeSecurityAuditLog({
       eventType: 'admin_overview',

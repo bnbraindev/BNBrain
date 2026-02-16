@@ -320,11 +320,16 @@ export function useConversationSync({
       if (!activeConversation || activeConversation.messages.length === 0) return;
       const lastSynced = syncedUpdatedAtRef.current.get(activeConversation.id);
       if (lastSynced !== undefined && lastSynced >= activeConversation.updatedAt) return;
-      const blob = new Blob(
-        [JSON.stringify({ owner: ownerIdentity, conversation: activeConversation })],
-        { type: 'application/json' }
-      );
-      navigator.sendBeacon?.('/api/conversations', blob);
+      fetch('/api/conversations', {
+        method: 'POST',
+        keepalive: true,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bnb-owner-type': ownerIdentity.ownerType,
+          'x-bnb-owner-id': ownerIdentity.ownerId,
+        },
+        body: JSON.stringify({ owner: ownerIdentity, conversation: activeConversation }),
+      }).catch(() => {});
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);

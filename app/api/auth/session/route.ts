@@ -10,12 +10,18 @@ import {
   revokeWalletAuthSessionToken,
   shouldRenewWalletAuthSession,
 } from '@/lib/server/siwe-auth';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    const ip = getRequestIpAddress(req);
+    const rl = await checkRateLimit({ key: `session:ip:${ip}`, limit: 30, windowMs: 60_000 });
+    if (!rl.allowed) {
+      return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Cache-Control': 'no-store' } });
+    }
     const url = new URL(req.url);
     const forceRenew = url.searchParams.get('renew') === 'force';
     const token = readAuthSessionTokenFromRequest(req);
