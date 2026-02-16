@@ -316,6 +316,14 @@ export async function PATCH(req: Request) {
   try {
     if (parsed.data.action === 'set-active') {
       const result = await setChatModelActive(parsed.data.id, parsed.data.active);
+      await writeSecurityAuditLog({
+        eventType: 'admin_models_manage',
+        result: 'success',
+        address: auth.session?.address ?? null,
+        ipAddress: auth.requestIp,
+        actorPurpose: auth.session?.purpose ?? null,
+        metadata: { action: 'set-active', modelId: parsed.data.id, active: parsed.data.active, mode: auth.authMode },
+      });
       return Response.json(
         {
           ok: true,
@@ -327,6 +335,14 @@ export async function PATCH(req: Request) {
       );
     }
     const result = await setDefaultChatModel(parsed.data.id);
+    await writeSecurityAuditLog({
+      eventType: 'admin_models_manage',
+      result: 'success',
+      address: auth.session?.address ?? null,
+      ipAddress: auth.requestIp,
+      actorPurpose: auth.session?.purpose ?? null,
+      metadata: { action: 'set-default', modelId: parsed.data.id, mode: auth.authMode },
+    });
     return Response.json(
       {
         ok: true,

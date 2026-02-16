@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, memo, useCallback, useState } from 'react';
+import { useMemo, memo, useCallback, useState, useRef, useEffect } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 
@@ -148,6 +148,8 @@ export const CodeHighlighter = memo(function CodeHighlighter({
 }: CodeHighlighterProps) {
   const [copied, setCopied] = useState(false);
   const { pushToast } = useToast();
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
   const tokens = useMemo(() => {
     if (!lang) return null;
@@ -157,7 +159,8 @@ export const CodeHighlighter = memo(function CodeHighlighter({
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(code).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
       pushToast({ title: 'Copied', variant: 'success', durationMs: 1500 });
     }).catch(() => {});
   }, [code, pushToast]);

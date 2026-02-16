@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { Share2, Check, Download, Twitter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,11 +19,14 @@ interface ShareButtonProps {
 
 export function ShareButton({ cardRef, shareText }: ShareButtonProps) {
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
   const handleCopyText = useCallback(async () => {
     await navigator.clipboard.writeText(shareText);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
   }, [shareText]);
 
   const handleShareTwitter = useCallback(() => {

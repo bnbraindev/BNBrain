@@ -57,7 +57,7 @@ export const ChatUserContextSchema = z
     guestId: z.string().optional(),
     chainId: z.number().optional(),
     chainName: z.string().optional(),
-    rpcUrl: z.string().optional(),
+    rpcUrl: z.string().max(200).optional(),
     connector: z.string().optional(),
     conversationScope: z.string().optional(),
     conversationContextStatus: z.string().optional(),

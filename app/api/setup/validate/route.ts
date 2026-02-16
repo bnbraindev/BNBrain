@@ -2,34 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isSetupCompleted } from '@/lib/server/setup-store';
 import { isAuthorizedAdmin, readBearerToken } from '@/lib/server/admin-auth';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
+import { validateUrlSafety } from '@/lib/server/url-safety';
 
 const VALIDATION_TIMEOUT_MS = 12_000;
-
-/** Block SSRF vectors: cloud metadata, link-local, and non-http(s) schemes. */
-function validateUrlSafety(raw: string): string | null {
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    return 'Invalid URL';
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return 'Only http and https URLs are allowed';
-  }
-  const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
-  const blocked = [
-    '169.254.169.254',  // AWS/GCP metadata
-    'metadata.google.internal',
-    '100.100.100.200',  // Alibaba Cloud metadata
-  ];
-  if (blocked.includes(hostname)) {
-    return 'URL points to a blocked metadata endpoint';
-  }
-  if (hostname.startsWith('fd') || hostname.startsWith('fe80')) {
-    return 'Link-local and unique-local IPv6 addresses are not allowed';
-  }
-  return null;
-}
 
 /**
  * POST /api/setup/validate

@@ -220,6 +220,8 @@ export async function saveContractSource(
   let totalChars = 0;
   for (const [filePath, content] of fileMap) {
     const fullPath = path.join(srcDir, filePath);
+    // Prevent path traversal — skip any file that escapes the source directory
+    if (!fullPath.startsWith(srcDir)) continue;
     ensureDir(path.dirname(fullPath));
     fs.writeFileSync(fullPath, content, 'utf-8');
     fileList.push(filePath);

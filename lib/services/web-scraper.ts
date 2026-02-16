@@ -5,6 +5,8 @@
  * Supports internal-link crawling for sub-pages (tokenomics, about, etc.).
  */
 
+import { validateUrlSafety } from '@/lib/server/url-safety';
+
 const MAX_TEXT_LENGTH = 10_000;
 const TIMEOUT_MS = 10_000;
 const CRAWL_TIMEOUT_MS = 8_000;
@@ -183,6 +185,7 @@ function resolveUrl(base: string, href: string): string {
  */
 export async function scrapeWebsite(url: string): Promise<ScrapedPage | null> {
   try {
+    if (validateUrlSafety(url)) return null;
     const res = await fetch(url, {
       headers: {
         'User-Agent': USER_AGENT,
@@ -270,6 +273,7 @@ export async function crawlSubPages(
   // Parallel fetch
   const results = await Promise.allSettled(
     targets.map(async (target) => {
+      if (validateUrlSafety(target.url)) return null;
       const res = await fetch(target.url, {
         headers: {
           'User-Agent': USER_AGENT,

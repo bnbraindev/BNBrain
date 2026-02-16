@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTransactionExecutor } from '@/lib/hooks/use-tx';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface OnchainProofData {
   type: string;
@@ -57,6 +57,8 @@ export function OnchainProofCard({
           : undefined,
     });
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
   const explorer = CHAIN_EXPLORERS[data.chainId] ?? CHAIN_EXPLORERS[97];
   const chainName = data.chainId === 97 ? 'BSC Testnet' : data.chainId === 204 ? 'opBNB' : 'BSC';
@@ -72,7 +74,8 @@ export function OnchainProofCard({
   const copyHash = useCallback(() => {
     navigator.clipboard.writeText(data.reportHash);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
   }, [data.reportHash]);
 
   return (
