@@ -143,8 +143,18 @@ export default function Home() {
     if (lastUrlSyncId.current === newId) return;
 
     const currentShareToken = getShareTokenFromUrl();
-    if (currentShareToken && !newId) {
-      return;
+    if (currentShareToken) {
+      if (lastUrlSyncId.current === undefined) {
+        // First sync after mount: activeConversationId may be a stale value
+        // from sessionStorage. Don't redirect away from the share URL.
+        // Effect 2 will clear it; subsequent user-initiated navigations
+        // (e.g. sidebar click) will have lastUrlSyncId initialized.
+        lastUrlSyncId.current = newId;
+        return;
+      }
+      if (!newId) {
+        return;
+      }
     }
 
     const currentUrlId = getConversationIdFromUrl();

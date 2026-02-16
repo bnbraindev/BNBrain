@@ -57,7 +57,9 @@ export function useTransactionExecutor(options?: UseTransactionExecutorOptions) 
     if (!cacheKey) return { status: 'idle' };
     return txStateCache.get(cacheKey) ?? { status: 'idle' };
   });
-  const lastStatusRef = useRef<TxStatus>('idle');
+  // Track whether this is the initial server-sync (skip toast for restored terminal states)
+  const initialSyncRef = useRef(true);
+  const lastStatusRef = useRef<TxStatus>(state.status);
   const { chain, address: connectedWalletAddress } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { sendTransactionAsync } = useSendTransaction();
@@ -113,6 +115,8 @@ export function useTransactionExecutor(options?: UseTransactionExecutorOptions) 
       setState({ status: 'idle' });
       return;
     }
+    // Restoring from cache — suppress toast for already-reached terminal states
+    lastStatusRef.current = cached.status;
     setState(cached);
   }, [cacheKey]);
 
@@ -152,8 +156,13 @@ export function useTransactionExecutor(options?: UseTransactionExecutorOptions) 
           const localUpdatedAt = current.updatedAt ?? 0;
           const remoteUpdatedAt = remoteState.updatedAt ?? 0;
           if (localUpdatedAt > remoteUpdatedAt) return current;
+          // On initial sync, suppress toast for terminal states already persisted
+          if (initialSyncRef.current) {
+            lastStatusRef.current = remoteState.status;
+          }
           return remoteState;
         });
+        initialSyncRef.current = false;
       } catch {
         // Ignore sync read failures; local state still works.
       }
