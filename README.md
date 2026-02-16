@@ -8,7 +8,7 @@ English | [中文](README.zh-CN.md)
 
 **Hackathon**: Good Vibes Only: OpenClaw Edition (Agent Track)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/YOUR_TEMPLATE_ID)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
 
 ---
 
@@ -111,7 +111,7 @@ All SDK calls include **12-second timeout**, **3x exponential backoff retry**, a
 
 ### Option 1: Deploy to Railway (Recommended)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/YOUR_TEMPLATE_ID)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
 
 1. Click the button above — Railway provisions the app + PostgreSQL automatically
 2. Wait ~3 minutes for the build to complete

@@ -8,7 +8,7 @@
 
 **黑客松**: Good Vibes Only: OpenClaw Edition (Agent 赛道)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/YOUR_TEMPLATE_ID)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
 
 ---
 
@@ -111,7 +111,7 @@ BNBrain 是一个能在 BNB Chain 上**执行真实操作**的 AI 代理。不�
 
 ### 方式一：一键部署到 Railway（推荐）
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/YOUR_TEMPLATE_ID)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
 
 1. 点击上方按钮 — Railway 自动创建应用 + PostgreSQL 数据库
 2. 等待约 3 分钟完成构建
