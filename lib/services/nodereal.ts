@@ -14,6 +14,7 @@
  */
 
 import type { Transaction, TokenTransfer } from './bscscan';
+import { withDataSource } from './data-source-manager';
 
 const SERVICE = 'nodereal';
 const BSC_ENDPOINT_BASE = 'https://bsc-mainnet.nodereal.io/v1';
@@ -67,34 +68,36 @@ async function rpcCall<T>(
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const start = Date.now();
 
   try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-      cache: 'no-store',
+    const result = await withDataSource(SERVICE, async () => {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${method}`);
+      }
+
+      const data = (await response.json()) as JsonRpcResponse<T>;
+
+      if (data.error) {
+        throw new Error(`RPC error for ${method}: ${data.error.message}`);
+      }
+
+      return data.result ?? null;
     });
-
-    if (!response.ok) {
-      console.warn(`[${SERVICE}] HTTP ${response.status} for ${method}`);
-      return null;
-    }
-
-    const data = (await response.json()) as JsonRpcResponse<T>;
-
-    if (data.error) {
-      console.warn(`[${SERVICE}] RPC error for ${method}: ${data.error.message}`);
-      return null;
-    }
-
-    return data.result ?? null;
+    return result;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       console.warn(`[${SERVICE}] timeout for ${method}`);
     } else {
-      console.warn(`[${SERVICE}] fetch error for ${method}:`, err instanceof Error ? err.message : err);
+      console.warn(`[${SERVICE}] ${err instanceof Error ? err.message : err}`);
     }
     return null;
   } finally {

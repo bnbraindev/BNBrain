@@ -4,6 +4,7 @@ import type { ComponentType, ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Activity,
   Bot,
   ChevronRight,
   Database,
@@ -59,6 +60,11 @@ const NAV_ITEMS: NavItem[] = [
     href: '/admin/runtime',
     labelKey: 'admin.nav.runtime',
     icon: Timer,
+  },
+  {
+    href: '/admin/data-sources',
+    labelKey: 'admin.nav.dataSources',
+    icon: Activity,
   },
   {
     href: '/admin/settings',

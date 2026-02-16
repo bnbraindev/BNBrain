@@ -9,6 +9,7 @@
  */
 
 import { serviceFetch } from './http-client';
+import { withDataSource } from './data-source-manager';
 import type { ContractSourceCode } from './bscscan';
 
 const SERVICE = 'sourcify';
@@ -59,11 +60,13 @@ export async function sourcifyGetContractSource(
 
   let raw: SourcifyV2Response;
   try {
-    raw = await serviceFetch<SourcifyV2Response>(url, {
-      service: SERVICE,
-      timeoutMs: 5_000,
-      maxAttempts: 1, // No retries — fallback to BscScan on failure
-    });
+    raw = await withDataSource(SERVICE, () =>
+      serviceFetch<SourcifyV2Response>(url, {
+        service: SERVICE,
+        timeoutMs: 5_000,
+        maxAttempts: 1, // No retries — fallback to BscScan on failure
+      })
+    );
   } catch {
     return null;
   }

@@ -8,6 +8,7 @@
  */
 
 import { serviceFetch, ServiceError } from './http-client';
+import { withDataSource } from './data-source-manager';
 
 const SERVICE = 'honeypot';
 const BASE = 'https://api.honeypot.is/v2';
@@ -134,11 +135,13 @@ export async function honeypotCheck(
   const addr = address.toLowerCase();
   const url = `${BASE}/IsHoneypot?address=${encodeURIComponent(addr)}&chainID=${chainId}`;
 
-  const raw = await serviceFetch<HoneypotRawResponse>(url, {
-    service: SERVICE,
-    timeoutMs: 3_000,   // D1: 3s timeout per slice decision
-    maxAttempts: 1,      // No retries — graceful degradation on failure
-  });
+  const raw = await withDataSource(SERVICE, () =>
+    serviceFetch<HoneypotRawResponse>(url, {
+      service: SERVICE,
+      timeoutMs: 3_000,   // D1: 3s timeout per slice decision
+      maxAttempts: 1,      // No retries — graceful degradation on failure
+    })
+  );
 
   return {
     isHoneypot: raw.honeypotResult?.isHoneypot ?? false,

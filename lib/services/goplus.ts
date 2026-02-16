@@ -9,6 +9,7 @@
 
 import { isAddress } from 'viem';
 import { ServiceError } from './http-client';
+import { withDataSource } from './data-source-manager';
 export { ServiceError } from './http-client';
 
 const SERVICE = 'goplus';
@@ -372,7 +373,9 @@ export async function tokenSecurity(
 
   let data: SdkResponse<Record<string, GoPlusTokenSecurityRaw>>;
   try {
-    data = await sdk.tokenSecurity(String(chainId), [addr]);
+    data = await withDataSource(SERVICE, () =>
+      sdk.tokenSecurity(String(chainId), [addr])
+    );
   } catch (err) {
     throw new ServiceError(SERVICE, err instanceof Error ? err.message : 'Token security lookup failed');
   }
@@ -476,7 +479,9 @@ export async function addressSecurity(
 
   let data: SdkResponse<GoPlusAddressSecurityRaw>;
   try {
-    data = await sdk.addressSecurity(chainId ? String(chainId) : '', address);
+    data = await withDataSource(SERVICE, () =>
+      sdk.addressSecurity(chainId ? String(chainId) : '', address)
+    );
   } catch (err) {
     throw new ServiceError(SERVICE, err instanceof Error ? err.message : 'Address security lookup failed');
   }
@@ -563,7 +568,9 @@ export async function approvalSecurity(
 
   let data: SdkResponse<ApprovalRawItem[]>;
   try {
-    data = await sdk.erc20ApprovalSecurity(String(chainId), address.toLowerCase());
+    data = await withDataSource(SERVICE, () =>
+      sdk.erc20ApprovalSecurity(String(chainId), address.toLowerCase())
+    );
   } catch (err) {
     throw new ServiceError(SERVICE, err instanceof Error ? err.message : 'Approval security lookup failed');
   }
@@ -615,7 +622,7 @@ export async function phishingSite(url: string): Promise<PhishingSiteResult> {
 
   let data: SdkResponse<{ phishing_site: number }>;
   try {
-    data = await sdk.phishingSite(url);
+    data = await withDataSource(SERVICE, () => sdk.phishingSite(url));
   } catch (err) {
     throw new ServiceError(SERVICE, err instanceof Error ? err.message : 'Phishing check failed');
   }
@@ -653,7 +660,7 @@ export async function dappSecurity(url: string): Promise<DAppSecurityResult> {
 
   let data: SdkResponse<DAppRaw>;
   try {
-    data = await sdk.dappSecurity(url);
+    data = await withDataSource(SERVICE, () => sdk.dappSecurity(url));
   } catch (err) {
     throw new ServiceError(SERVICE, err instanceof Error ? err.message : 'dApp security check failed');
   }
@@ -719,11 +726,13 @@ export async function signatureDecode(params: {
 
   let resp: SdkResponse<InputDecodeRaw>;
   try {
-    resp = await sdk.inputDecodeWithOpts(
-      String(params.chainId),
-      params.contractAddress ?? '',
-      params.data,
-      { signer: params.signer }
+    resp = await withDataSource(SERVICE, () =>
+      sdk.inputDecodeWithOpts(
+        String(params.chainId),
+        params.contractAddress ?? '',
+        params.data,
+        { signer: params.signer }
+      )
     );
   } catch (err) {
     throw new ServiceError(SERVICE, err instanceof Error ? err.message : 'Signature decode failed');
@@ -789,7 +798,9 @@ export async function nftSecurity(
 
   let data: SdkResponse<NftRaw>;
   try {
-    data = await sdk.nftSecurity(String(chainId), contractAddress.toLowerCase(), tokenId);
+    data = await withDataSource(SERVICE, () =>
+      sdk.nftSecurity(String(chainId), contractAddress.toLowerCase(), tokenId)
+    );
   } catch (err) {
     throw new ServiceError(SERVICE, err instanceof Error ? err.message : 'NFT security lookup failed');
   }

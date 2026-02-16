@@ -11,6 +11,7 @@
 import { getPublicClient } from '@/lib/chain/server-client';
 import { parseAbiItem, type Log } from 'viem';
 import { serviceFetch } from './http-client';
+import { withDataSource } from './data-source-manager';
 export { ServiceError } from './http-client';
 
 const SERVICE = 'bscscan';
@@ -158,9 +159,11 @@ async function etherscanV2<T>(
   });
 
   try {
-    const data = await serviceFetch<EtherscanV2Response<T>>(
-      `${ETHERSCAN_V2_BASE}?${searchParams}`,
-      { service: SERVICE, timeoutMs: 15_000 }
+    const data = await withDataSource('etherscan-v2', () =>
+      serviceFetch<EtherscanV2Response<T>>(
+        `${ETHERSCAN_V2_BASE}?${searchParams}`,
+        { service: SERVICE, timeoutMs: 15_000 }
+      )
     );
     if (data.status === '1' && data.result !== undefined) {
       return data.result;

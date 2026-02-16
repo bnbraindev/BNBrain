@@ -8,6 +8,7 @@
  */
 
 import { serviceFetch, ServiceError } from './http-client';
+import { withDataSource } from './data-source-manager';
 
 const SERVICE = 'dexscreener';
 const BASE = 'https://api.dexscreener.com';
@@ -198,9 +199,11 @@ export async function getTokenPrice(
 ): Promise<TokenPrice | null> {
   const slugs = chainId ? new Set([toChainSlug(chainId)]) : RELEVANT_SLUGS;
   try {
-    const data = await serviceFetch<DexPairsResponse>(
-      `${BASE}/latest/dex/tokens/${address}`,
-      { service: SERVICE }
+    const data = await withDataSource(SERVICE, () =>
+      serviceFetch<DexPairsResponse>(
+        `${BASE}/latest/dex/tokens/${address}`,
+        { service: SERVICE }
+      )
     );
     if (!data.pairs?.length) return null;
     const best = bestPairByLiquidity(data.pairs, slugs);
@@ -221,9 +224,11 @@ export async function getTokenPriceByChain(
 ): Promise<TokenPrice | null> {
   const slug = toChainSlug(chainId);
   try {
-    const data = await serviceFetch<DexPairsResponse>(
-      `${BASE}/latest/dex/tokens/${address}`,
-      { service: SERVICE }
+    const data = await withDataSource(SERVICE, () =>
+      serviceFetch<DexPairsResponse>(
+        `${BASE}/latest/dex/tokens/${address}`,
+        { service: SERVICE }
+      )
     );
     if (!data.pairs?.length) return null;
     const chainPairs = data.pairs.filter((p) => p.chainId === slug);
@@ -251,9 +256,11 @@ export async function searchToken(
     : RELEVANT_SLUGS;
 
   try {
-    const data = await serviceFetch<DexPairsResponse>(
-      `${BASE}/latest/dex/search?q=${encodeURIComponent(query)}`,
-      { service: SERVICE }
+    const data = await withDataSource(SERVICE, () =>
+      serviceFetch<DexPairsResponse>(
+        `${BASE}/latest/dex/search?q=${encodeURIComponent(query)}`,
+        { service: SERVICE }
+      )
     );
     if (!data.pairs?.length) return [];
     return data.pairs
@@ -325,9 +332,11 @@ export async function getLatestTokens(
     : 'bsc';
 
   try {
-    const resp = await serviceFetch<GeckoNewPoolsResponse>(
-      `${GECKO_BASE}/networks/${geckoChain}/new_pools?page=1&include=base_token`,
-      { service: 'geckoterminal', headers: { Accept: 'application/json' } }
+    const resp = await withDataSource('geckoterminal', () =>
+      serviceFetch<GeckoNewPoolsResponse>(
+        `${GECKO_BASE}/networks/${geckoChain}/new_pools?page=1&include=base_token`,
+        { service: 'geckoterminal', headers: { Accept: 'application/json' } }
+      )
     );
 
     const pools = resp.data ?? [];
@@ -395,9 +404,11 @@ export async function getPairInfo(
 ): Promise<PairInfo | null> {
   const slug = toChainSlug(chainId);
   try {
-    const data = await serviceFetch<DexPairsResponse>(
-      `${BASE}/latest/dex/pairs/${slug}/${pairAddress}`,
-      { service: SERVICE }
+    const data = await withDataSource(SERVICE, () =>
+      serviceFetch<DexPairsResponse>(
+        `${BASE}/latest/dex/pairs/${slug}/${pairAddress}`,
+        { service: SERVICE }
+      )
     );
     const pair = data.pairs?.[0];
     if (!pair) return null;
