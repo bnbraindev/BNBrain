@@ -65,12 +65,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const pushToast = useCallback(
     (toast: ToastInput) => {
       const id = nextToastId();
+      const variant = toast.variant ?? 'info';
+      const defaultDuration = variant === 'error' ? 8000 : variant === 'warning' ? 5000 : 3500;
       const item: ToastItem = {
         id,
         title: toast.title,
         message: toast.message,
-        variant: toast.variant ?? 'info',
-        durationMs: toast.durationMs ?? 3500,
+        variant,
+        durationMs: toast.durationMs ?? defaultDuration,
       };
       setToasts((prev) => [...prev, item].slice(-5));
       setTimeout(() => removeToast(id), item.durationMs);

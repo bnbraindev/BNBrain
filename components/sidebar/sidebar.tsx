@@ -192,6 +192,17 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
     }
   }, [searchOpen]);
 
+  // Lock body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    // Only needed on mobile (lg breakpoint uses static sidebar)
+    const mq = window.matchMedia('(min-width: 1024px)');
+    if (mq.matches) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [sidebarOpen]);
+
   // Filter conversations: show all if not authed, or only matching wallet
   const visibleConversations = useMemo(
     () => {

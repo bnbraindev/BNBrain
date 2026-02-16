@@ -363,6 +363,8 @@ export function useStreamLifecycle({
     t,
   ]);
 
+  const clearLocalChatError = useCallback(() => setLocalChatError(null), []);
+
   return {
     streamLifecycle,
     localChatError,
@@ -371,5 +373,6 @@ export function useStreamLifecycle({
     markStreamCancelled,
     handleStop,
     canStartRun,
+    clearLocalChatError,
   };
 }

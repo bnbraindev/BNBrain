@@ -526,6 +526,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     markStreamCancelled,
     handleStop,
     canStartRun,
+    clearLocalChatError,
   } = useStreamLifecycle({
     activeConversationId,
     chatSessionId,
@@ -544,10 +545,13 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     const previous = previousConversationRef.current;
     const switchedConversation =
       Boolean(previous) && previous !== activeConversationId;
-    if (switchedConversation && isStreaming) {
-      void cancelRunOnServer(previous);
-      stop();
-      markStreamCancelled();
+    if (switchedConversation) {
+      clearLocalChatError();
+      if (isStreaming) {
+        void cancelRunOnServer(previous);
+        stop();
+        markStreamCancelled();
+      }
     }
     if (switchedConversation || (!previous && activeConversationId)) {
       switchMeasureStartRef.current = nowMs();
@@ -565,6 +569,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     cancelRunOnServer,
     stop,
     markStreamCancelled,
+    clearLocalChatError,
   ]);
 
   const chatError = localChatError ?? apiChatError;
@@ -1137,8 +1142,29 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
               </div>
             </div>
           ) : showSharedErrorPlaceholder ? (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
-              {sharedConversationError}
+            <div className="flex min-h-[16rem] flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card/85 px-6 py-8 text-center">
+              <div className="flex size-12 items-center justify-center rounded-full bg-amber-500/10">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-base font-medium text-foreground">
+                  {locale === 'zh' ? '链接无效或已过期' : 'Link invalid or expired'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {sharedConversationError}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { window.location.href = '/'; }}
+                className="mt-1 rounded-lg bg-primary/90 px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary"
+              >
+                {locale === 'zh' ? '返回首页' : 'Back to home'}
+              </button>
             </div>
           ) : isEmpty ? (
             <EmptyState

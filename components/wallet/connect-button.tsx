@@ -4,6 +4,9 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useBalance, useConfig } from 'wagmi';
 import { formatUnits } from 'viem';
 import { useDebugMode } from '@/lib/debug/context';
+import { useChatStore } from '@/lib/stores/chat-store';
+import { cn } from '@/lib/utils';
+import { clearWalletSession } from '@/lib/services/wallet-auth';
 import { useEffect, useRef } from 'react';
 
 function formatBnbBalance(value: bigint, decimals: number): string {
@@ -143,6 +146,18 @@ function useDisconnectWatcher() {
 
         if (prev.status === 'connected' && next.status === 'disconnected') {
           void clearRecentConnectorHint();
+          // Clear server session first, then update local state.
+          // Don't call clearWalletConversations here — the sidebar sync
+          // effect will handle it after verifying the session is gone,
+          // avoiding a race where conversations are deleted prematurely.
+          const { authenticatedAddress, setAuthenticatedAddress } = useChatStore.getState();
+          if (authenticatedAddress) {
+            void clearWalletSession({ allDevices: false })
+              .catch(() => undefined)
+              .finally(() => {
+                useChatStore.getState().setAuthenticatedAddress(null);
+              });
+          }
         }
       }
     );
@@ -153,6 +168,12 @@ function useDisconnectWatcher() {
 
 export function WalletButton() {
   useDisconnectWatcher();
+  const { address: connectedAddress } = useAccount();
+  const authenticatedAddress = useChatStore((s) => s.authenticatedAddress);
+  const isMismatch = Boolean(
+    authenticatedAddress && connectedAddress &&
+    authenticatedAddress.toLowerCase() !== connectedAddress.toLowerCase()
+  );
 
   return (
     <ConnectButton.Custom>
@@ -225,10 +246,19 @@ export function WalletButton() {
                   <button
                     type="button"
                     onClick={openAccountModal}
-                    className="flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-border bg-card/80 px-3 shadow-sm backdrop-blur-md transition-colors hover:bg-card"
+                    className={cn(
+                      'flex h-9 cursor-pointer items-center gap-2 rounded-xl border px-3 shadow-sm backdrop-blur-md transition-colors',
+                      isMismatch
+                        ? 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15'
+                        : 'border-border bg-card/80 hover:bg-card'
+                    )}
+                    title={isMismatch ? 'Wallet address does not match signed-in session' : undefined}
                   >
+                    {isMismatch && (
+                      <span className="size-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+                    )}
                     <BalanceDisplay />
-                    <span className="text-xs text-muted-foreground">
+                    <span className={cn('text-xs', isMismatch ? 'text-amber-400' : 'text-muted-foreground')}>
                       {account.displayName}
                     </span>
                   </button>

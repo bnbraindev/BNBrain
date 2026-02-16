@@ -49,6 +49,7 @@ export function useMessageViewport({
   const lastAutoLoadOlderAtRef = useRef(0);
   const lastScrolledConversationRef = useRef<string | null>(null);
   const userScrolledUpRef = useRef(false);
+  const userScrollCooldownUntilRef = useRef(0);
 
   const resetViewport = useCallback(() => {
     setVisibleMessageCount(INITIAL_MESSAGE_PAGE_SIZE);
@@ -94,8 +95,12 @@ export function useMessageViewport({
         if (Number.isFinite(scrollSize) && Number.isFinite(viewportSize)) {
           const distanceFromBottom = scrollSize - (offset + viewportSize);
           const wasAtBottom = !userScrolledUpRef.current;
-          // Consider "at bottom" when within a generous threshold.
-          userScrolledUpRef.current = distanceFromBottom > 60;
+          userScrolledUpRef.current = distanceFromBottom > 120;
+          // While user is scrolled up, keep refreshing cooldown so auto-scroll
+          // doesn't yank them back while they are reading earlier messages.
+          if (userScrolledUpRef.current) {
+            userScrollCooldownUntilRef.current = Date.now() + 2000;
+          }
           const nowAtBottom = !userScrolledUpRef.current;
           if (nowAtBottom !== wasAtBottom) {
             setIsAtBottom(nowAtBottom);
@@ -215,7 +220,7 @@ export function useMessageViewport({
     if (switchedConversation) {
       userScrolledUpRef.current = false;
       scrollToBottom();
-    } else if (isStreaming && !userScrolledUpRef.current) {
+    } else if (isStreaming && !userScrolledUpRef.current && Date.now() >= userScrollCooldownUntilRef.current) {
       scrollToBottom();
     }
     let settleTimerA: ReturnType<typeof setTimeout> | null = null;
