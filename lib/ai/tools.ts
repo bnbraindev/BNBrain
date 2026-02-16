@@ -2,6 +2,9 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { tokenSecurity, addressSecurity, phishingSite, dappSecurity, signatureDecode, nftSecurity, approvalSecurity } from '@/lib/services/goplus';
 import { honeypotCheck } from '@/lib/services/honeypot';
+import { sourcifyGetContractSource } from '@/lib/services/sourcify';
+import { noderealGetTransactionHistory } from '@/lib/services/nodereal';
+import { getAllDataSourceHealth } from '@/lib/services/data-source-manager';
 import { getTokenPrice, getLatestTokens, searchToken } from '@/lib/services/dexscreener';
 import { getPublicClient } from '@/lib/chain/server-client';
 import { ERC20_ABI } from '@/lib/utils/constants';
@@ -2212,16 +2215,28 @@ export const aiTools = {
       let honeypotData: Record<string, unknown> | null = null;
       let contractData: Record<string, unknown> | null = null;
       let marketData: Record<string, unknown> | null = null;
+      let sourcifyData: Record<string, unknown> | null = null;
+      let noderealData: Record<string, unknown> | null = null;
       let tokenName: string | null = null;
       let tokenSymbol: string | null = null;
       let websiteUrl: string | null = null;
+
+      // Track data source coverage for the report
+      const dataSourceCoverage: Array<{
+        name: string;
+        status: 'success' | 'failed' | 'unavailable';
+        responseMs?: number;
+        detail?: string;
+      }> = [];
 
       // All step definitions for progress tracking
       const ALL_STEPS: StepProgress[] = [
         { key: 'security', label: 'Token Security Scan', status: 'pending' },
         { key: 'honeypot', label: 'Honeypot.is Simulation', status: 'pending' },
         { key: 'contract', label: 'Contract Audit', status: 'pending' },
+        { key: 'sourcify', label: 'Sourcify Verification', status: 'pending' },
         { key: 'market', label: 'Market Data', status: 'pending' },
+        { key: 'nodereal', label: 'NodeReal Chain Data', status: 'pending' },
         { key: 'search', label: 'Web & Social Search', status: 'pending' },
         { key: 'analysis', label: 'AI Analysis', status: 'pending' },
         { key: 'render', label: 'Report Render', status: 'pending' },
@@ -2253,17 +2268,21 @@ export const aiTools = {
         security: { status: 'running' },
         honeypot: { status: 'running' },
         contract: { status: 'running' },
+        sourcify: { status: 'running' },
         market: { status: 'running' },
+        nodereal: { status: 'running' },
       });
 
       const phase1Start = Date.now();
-      const [secResult, hpResult, contractResult, marketResult] = await Promise.allSettled([
+      const [secResult, hpResult, contractResult, marketResult, sourcifyResult, noderealResult] = await Promise.allSettled([
         tokenSecurity(addr, chainId),
         honeypotCheck(addr, chainId),
         getContractSourceCode(addr, chainId),
         getTokenPrice(addr, chainId),
+        sourcifyGetContractSource(addr, chainId),
+        noderealGetTransactionHistory(addr, { chainId }),
       ]);
-      log(`Phase1 done (${Date.now() - phase1Start}ms): goplus=${secResult.status} honeypot=${hpResult.status} bscscan=${contractResult.status} dex=${marketResult.status}`);
+      log(`Phase1 done (${Date.now() - phase1Start}ms): goplus=${secResult.status} honeypot=${hpResult.status} bscscan=${contractResult.status} dex=${marketResult.status} sourcify=${sourcifyResult.status} nodereal=${noderealResult.status}`);
       const p1dur = Date.now() - phase1Start;
 
       if (secResult.status === 'fulfilled') {
@@ -2359,6 +2378,53 @@ export const aiTools = {
           durationMs: Date.now() - phase1Start });
       }
 
+      // Sourcify result (independent contract verification)
+      if (sourcifyResult.status === 'fulfilled' && sourcifyResult.value) {
+        const src = sourcifyResult.value;
+        sourcifyData = {
+          contractName: src.contractName,
+          compilerVersion: src.compilerVersion,
+          optimizationUsed: src.optimizationUsed,
+          verified: true,
+          sourceLineCount: src.sourceCode.split('\n').length,
+        };
+        steps.push({ key: 'sourcify', label: 'Sourcify Verification', status: 'completed',
+          summary: `Verified — ${src.contractName}`, durationMs: p1dur });
+      } else {
+        steps.push({ key: 'sourcify', label: 'Sourcify Verification',
+          status: sourcifyResult.status === 'rejected' ? 'failed' : 'skipped',
+          summary: sourcifyResult.status === 'rejected' ? 'Sourcify unavailable' : 'Not verified on Sourcify',
+          durationMs: p1dur });
+      }
+
+      // NodeReal result (on-chain transaction data)
+      if (noderealResult.status === 'fulfilled' && noderealResult.value && noderealResult.value.length > 0) {
+        const txs = noderealResult.value;
+        noderealData = {
+          recentTxCount: txs.length,
+          latestTxHash: txs[0]?.hash ?? null,
+          latestTxTime: txs[0]?.timeStamp ?? null,
+          uniqueAddresses: new Set(txs.flatMap(t => [t.from, t.to].filter(Boolean))).size,
+        };
+        steps.push({ key: 'nodereal', label: 'NodeReal Chain Data', status: 'completed',
+          summary: `${txs.length} recent txs`, durationMs: p1dur });
+      } else {
+        steps.push({ key: 'nodereal', label: 'NodeReal Chain Data',
+          status: noderealResult.status === 'rejected' ? 'failed' : 'skipped',
+          summary: noderealResult.status === 'rejected' ? 'NodeReal unavailable' : 'No recent transactions',
+          durationMs: p1dur });
+      }
+
+      // Build data source coverage
+      dataSourceCoverage.push(
+        { name: 'GoPlus', status: secResult.status === 'fulfilled' ? 'success' : 'failed', responseMs: p1dur, detail: securityData ? `${(securityData.risks as unknown[])?.length ?? 0} risks detected` : undefined },
+        { name: 'Honeypot.is', status: hpResult.status === 'fulfilled' ? 'success' : 'failed', responseMs: p1dur, detail: honeypotData ? `Simulation ${(honeypotData.simulationSuccess as boolean) ? 'success' : 'failed'}` : undefined },
+        { name: 'BscScan', status: contractResult.status === 'fulfilled' && contractResult.value?.sourceCode ? 'success' : contractResult.status === 'rejected' ? 'failed' : 'unavailable', responseMs: p1dur },
+        { name: 'Sourcify', status: sourcifyResult.status === 'fulfilled' && sourcifyResult.value ? 'success' : sourcifyResult.status === 'rejected' ? 'failed' : 'unavailable', responseMs: p1dur },
+        { name: 'DexScreener', status: marketResult.status === 'fulfilled' && marketResult.value ? 'success' : marketResult.status === 'rejected' ? 'failed' : 'unavailable', responseMs: p1dur },
+        { name: 'NodeReal', status: noderealResult.status === 'fulfilled' && noderealResult.value && noderealResult.value.length > 0 ? 'success' : noderealResult.status === 'rejected' ? 'failed' : 'unavailable', responseMs: p1dur },
+      );
+
       // Emit Phase 1 completion
       emitProgress('phase1-done', {
         security: {
@@ -2377,10 +2443,22 @@ export const aiTools = {
           summary: steps.find((s) => s.key === 'contract')?.summary ?? undefined,
           durationMs: p1dur,
         },
+        sourcify: {
+          status: sourcifyResult.status === 'fulfilled' && sourcifyResult.value ? 'completed'
+            : sourcifyResult.status === 'rejected' ? 'failed' : 'skipped',
+          summary: steps.find((s) => s.key === 'sourcify')?.summary ?? undefined,
+          durationMs: p1dur,
+        },
         market: {
           status: marketResult.status === 'fulfilled' && marketResult.value ? 'completed'
             : marketResult.status === 'rejected' ? 'failed' : 'skipped',
           summary: steps.find((s) => s.key === 'market')?.summary ?? undefined,
+          durationMs: p1dur,
+        },
+        nodereal: {
+          status: noderealResult.status === 'fulfilled' && noderealResult.value && noderealResult.value.length > 0 ? 'completed'
+            : noderealResult.status === 'rejected' ? 'failed' : 'skipped',
+          summary: steps.find((s) => s.key === 'nodereal')?.summary ?? undefined,
           durationMs: p1dur,
         },
       });
@@ -2552,9 +2630,19 @@ export const aiTools = {
         log(`Phase3 model resolved: ${resolved.displayName} (${resolved.providerModelId}) via ${resolved.baseUrl} [${source}]`);
         const model = createRuntimeLanguageModel(resolved);
 
+        // Add search data source to coverage
+        dataSourceCoverage.push(
+          { name: 'Serper', status: serperResult.status === 'fulfilled' ? 'success' : 'failed', detail: `${searchResults.general.length + searchResults.twitter.length} results` },
+        );
+        if (websiteText) {
+          dataSourceCoverage.push({ name: 'Website Scrape', status: 'success', detail: websiteUrl ?? undefined });
+        }
+
         const dataPayload = JSON.stringify({
           tokenAddress: addr, chainId, tokenName, tokenSymbol,
           security: securityData, honeypot: honeypotData, contract: contractData, market: marketData,
+          sourcify: sourcifyData, nodereal: noderealData,
+          dataSourceCoverage,
           search: {
             general: searchResults.general.slice(0, 10),
             twitter: searchResults.twitter.slice(0, 10),

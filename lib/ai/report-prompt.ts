@@ -78,6 +78,13 @@ interface ReportJSON {
   positives: BiText[];      // 2-5 positive bullet points (good findings)
   recommendation: BiText;   // final recommendation paragraph
 
+  dataSourceCoverage?: DataSourceCoverageItem[];  // data source transparency list
+  // DataSourceCoverageItem: { name: string, status: "success"|"failed"|"unavailable", detail?: string }
+  // MUST be populated from the \`dataSourceCoverage\` array in the input data. Copy it as-is.
+
+  confidenceScore?: number;  // 0-100 based on data source coverage
+  // Calculate: start at 30, +10 for each successful core source (GoPlus, Honeypot.is, BscScan, DexScreener), +5 for each supplementary source (Sourcify, NodeReal, Serper, Website Scrape). Clamp to 0-100.
+
   customSections?: CustomSection[];  // optional extra sections if important findings don't fit above
   // CustomSection: { title: BiText, position: "after-security"|"after-overview"|"after-intel"|"before-risk", html: string }
   // html must use ONLY these CSS classes: .card, .card-title, .tag .pass/.warn/.fail, .stat-value, .stat-sub
@@ -120,6 +127,27 @@ Cross-validation rules:
 - honeypot.buyGas or sellGas > 300000 → add note: "高 Gas 消耗 / High gas consumption"
 
 When honeypot data is unavailable (API timeout/error), note "Honeypot.is 不可用，仅依赖 GoPlus / Honeypot.is unavailable, GoPlus only" in honeypot check detail.
+
+## Sourcify Cross-Validation (when \`sourcify\` data is available)
+
+If the contract is verified on Sourcify (\`sourcify.verified === true\`):
+- Add to security items: "Sourcify 已验证 / Sourcify Verified" → pass
+- If both BscScan and Sourcify verified the contract, note "双重验证 / Dual verification (BscScan + Sourcify)" in contract security detail
+If Sourcify data is unavailable, omit the Sourcify security item (do not add a failure entry).
+
+## NodeReal Chain Data (when \`nodereal\` data is available)
+
+If \`nodereal.recentTxCount > 0\`:
+- Use the transaction activity data to enrich intel items (e.g., recent on-chain activity volume)
+- If \`nodereal.uniqueAddresses\` is very low (< 5), note potential wash trading risk
+If NodeReal data is unavailable, simply omit — this is supplementary data.
+
+## Data Source Coverage & Confidence Score
+
+The input includes a \`dataSourceCoverage\` array listing all queried data sources and their status.
+- Copy this array directly into the \`dataSourceCoverage\` field of your output
+- Calculate \`confidenceScore\`: start at 30, +10 for each successful core source (GoPlus, Honeypot.is, BscScan, DexScreener), +5 for each successful supplementary source (Sourcify, NodeReal, Serper, Website Scrape). Clamp 0-100.
+- The more sources that succeed, the higher the confidence — this helps users understand how reliable the report is
 
 ## Risk Score Calculation
 - Start at 30 (baseline)

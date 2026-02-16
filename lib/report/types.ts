@@ -149,6 +149,17 @@ export interface ReportJSON {
   positives: BiText[];
   recommendation: BiText;
 
+  // ── Data Source Coverage ──
+  dataSourceCoverage?: DataSourceCoverageItem[];
+  confidenceScore?: number; // 0-100, computed from source coverage
+
   // ── Custom Sections ──
   customSections?: CustomSection[];
+}
+
+/** Data source coverage item for transparency */
+export interface DataSourceCoverageItem {
+  name: string;
+  status: 'success' | 'failed' | 'unavailable';
+  detail?: string;
 }

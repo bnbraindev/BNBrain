@@ -2,6 +2,7 @@ import type {
   ReportJSON, BiText, SocialLink, StatItem, SecurityItem,
   HolderDistribution, ContractInfo, BuySellData, Feature,
   IntelItem, CustomSection, ExchangeListing, SentimentData,
+  DataSourceCoverageItem,
 } from './types';
 
 // ── Helpers ──────────────────────────────────────────────
@@ -272,7 +273,20 @@ a.ex:hover{background:var(--gold);color:#000;border-color:var(--gold)}
 }
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .cd,.strip{animation:fadeIn .4s ease both}
-.cd:nth-child(2){animation-delay:.03s}.cd:nth-child(3){animation-delay:.06s}.cd:nth-child(4){animation-delay:.09s}`;
+.cd:nth-child(2){animation-delay:.03s}.cd:nth-child(3){animation-delay:.06s}.cd:nth-child(4){animation-delay:.09s}
+.ds-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ds{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg3);border-radius:8px;transition:all .2s}
+.ds:hover{background:var(--bg4)}
+.ds-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ds-dot.ok{background:var(--green)}.ds-dot.err{background:var(--red)}.ds-dot.na{background:var(--t3)}
+.ds-n{font-size:11px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ds-s{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;flex-shrink:0;text-transform:uppercase;letter-spacing:.5px}
+.ds-s.ok{background:var(--green-dim);color:var(--green)}.ds-s.err{background:var(--red-dim);color:var(--red)}.ds-s.na{background:var(--bar-dim);color:var(--t3)}
+.conf-bar{display:flex;align-items:center;gap:10px;margin-top:10px}
+.conf-track{flex:1;height:6px;border-radius:3px;background:var(--bar-dim);overflow:hidden}
+.conf-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.conf-lbl{font-size:12px;font-weight:700;min-width:40px;text-align:right}
+@media(max-width:640px){.ds-grid{grid-template-columns:repeat(2,1fr)}}`;
 }
 
 function renderCopyable(fullAddr: string, displayAddr: string, link: string): string {
@@ -479,6 +493,35 @@ function renderCustomSections(sections: CustomSection[] | undefined, position: s
     .join('\n  ');
 }
 
+function renderDataSourceCoverage(d: ReportJSON): string {
+  if (!d.dataSourceCoverage?.length) return '';
+  const items = d.dataSourceCoverage.map(ds => {
+    const cls = ds.status === 'success' ? 'ok' : ds.status === 'failed' ? 'err' : 'na';
+    const label = ds.status === 'success' ? 'OK' : ds.status === 'failed' ? 'FAIL' : 'N/A';
+    const detail = ds.detail ? ` <span style="font-size:9px;color:var(--t3)">${esc(ds.detail)}</span>` : '';
+    return `<div class="ds"><div class="ds-dot ${cls}"></div><div class="ds-n">${esc(ds.name)}${detail}</div><span class="ds-s ${cls}">${label}</span></div>`;
+  }).join('\n      ');
+
+  const confidence = d.confidenceScore ?? 0;
+  const confColor = confidence >= 70 ? 'var(--green)' : confidence >= 40 ? 'var(--yellow)' : 'var(--red)';
+  const confLabel = confidence >= 70
+    ? bi({ zh: '高可信度', en: 'High Confidence' })
+    : confidence >= 40
+      ? bi({ zh: '中等可信度', en: 'Medium Confidence' })
+      : bi({ zh: '低可信度', en: 'Low Confidence' });
+
+  return `<div class="cd">
+    <div class="cd-t">${bi({ zh: '数据源覆盖度', en: 'Data Source Coverage' })}</div>
+    <div class="ds-grid">${items}</div>
+    <div class="conf-bar">
+      <span style="font-size:11px;color:var(--t3)">${bi({ zh: '可信度评分', en: 'Confidence Score' })}</span>
+      <div class="conf-track"><div class="conf-fill" style="width:${confidence}%;background:${confColor}"></div></div>
+      <div class="conf-lbl" style="color:${confColor}">${confidence}</div>
+    </div>
+    <div style="margin-top:6px;font-size:10px;color:var(--t3);text-align:center">${confLabel}</div>
+  </div>`;
+}
+
 function renderFooter(): string {
   return `<div class="ftr">
     <div class="ftr-b">
@@ -489,15 +532,21 @@ function renderFooter(): string {
       <span class="lang-zh">
         数据来源：
         <a class="src-link" href="https://gopluslabs.io" target="_blank">GoPlus</a> ·
+        <a class="src-link" href="https://honeypot.is" target="_blank">Honeypot.is</a> ·
         <a class="src-link" href="https://bscscan.com" target="_blank">BscScan</a> ·
+        <a class="src-link" href="https://sourcify.dev" target="_blank">Sourcify</a> ·
         <a class="src-link" href="https://dexscreener.com" target="_blank">DexScreener</a> ·
+        <a class="src-link" href="https://nodereal.io" target="_blank">NodeReal</a> ·
         <a class="src-link" href="https://serper.dev" target="_blank">Serper</a> · 官网抓取
       </span>
       <span class="lang-en">
         Sources:
         <a class="src-link" href="https://gopluslabs.io" target="_blank">GoPlus</a> ·
+        <a class="src-link" href="https://honeypot.is" target="_blank">Honeypot.is</a> ·
         <a class="src-link" href="https://bscscan.com" target="_blank">BscScan</a> ·
+        <a class="src-link" href="https://sourcify.dev" target="_blank">Sourcify</a> ·
         <a class="src-link" href="https://dexscreener.com" target="_blank">DexScreener</a> ·
+        <a class="src-link" href="https://nodereal.io" target="_blank">NodeReal</a> ·
         <a class="src-link" href="https://serper.dev" target="_blank">Serper</a> · Direct Scraping
       </span>
     </div>
@@ -544,6 +593,7 @@ ${renderCSS()}
   ${renderCustomSections(data.customSections, 'after-intel')}
   ${renderCustomSections(data.customSections, 'before-risk')}
   ${renderRiskSummary(data)}
+  ${renderDataSourceCoverage(data)}
   ${renderFooter()}
 </div>
 </div>
