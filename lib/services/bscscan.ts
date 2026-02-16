@@ -175,7 +175,7 @@ async function etherscanV2<T>(
 
 /**
  * Get transaction history for an address.
- * Tries Etherscan V2 first, falls back to RPC block scanning.
+ * Fallback chain: NodeReal → Etherscan V2 → RPC block scanning.
  */
 export async function getTransactionHistory(
   address: string,
@@ -186,7 +186,21 @@ export async function getTransactionHistory(
   const pageSize = Math.min(100, options?.pageSize ?? 20);
   const sort = options?.sort ?? 'desc';
 
-  // Try Etherscan V2
+  // 1. Try NodeReal Enhanced API (free, 100M CU/month)
+  if (chainId === 56 && page === 1) {
+    try {
+      const { noderealGetTransactionHistory } = await import('./nodereal');
+      const nrResult = await noderealGetTransactionHistory(address, { pageSize, chainId });
+      if (nrResult && nrResult.length > 0) {
+        console.log(`[bscscan] using nodereal for tx history (${nrResult.length} txs)`);
+        return nrResult;
+      }
+    } catch (err) {
+      console.warn('[bscscan] nodereal tx history failed, falling back:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  // 2. Try Etherscan V2
   const v2Result = await etherscanV2<Transaction[]>(chainId, {
     module: 'account',
     action: 'txlist',
@@ -199,24 +213,47 @@ export async function getTransactionHistory(
   });
   if (v2Result && Array.isArray(v2Result)) return v2Result;
 
-  // Fallback: RPC-based scanning
+  // 3. Fallback: RPC-based scanning
   return getRpcTransactionHistory(address, page, pageSize, chainId);
 }
 
 /**
  * Get ERC-20 token transfers for an address.
+ * Fallback chain: NodeReal → Etherscan V2.
  */
 export async function getTokenTransfers(
   address: string,
   options?: { contractAddress?: string; chainId?: number; page?: number; pageSize?: number }
 ): Promise<TokenTransfer[]> {
   const chainId = options?.chainId ?? 56;
+  const page = options?.page ?? 1;
+  const pageSize = Math.min(100, options?.pageSize ?? 20);
+
+  // 1. Try NodeReal Enhanced API
+  if (chainId === 56 && page === 1) {
+    try {
+      const { noderealGetTokenTransfers } = await import('./nodereal');
+      const nrResult = await noderealGetTokenTransfers(address, {
+        contractAddress: options?.contractAddress,
+        chainId,
+        pageSize,
+      });
+      if (nrResult && nrResult.length > 0) {
+        console.log(`[bscscan] using nodereal for token transfers (${nrResult.length} transfers)`);
+        return nrResult;
+      }
+    } catch (err) {
+      console.warn('[bscscan] nodereal token transfers failed, falling back:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  // 2. Etherscan V2
   const params: Record<string, string> = {
     module: 'account',
     action: 'tokentx',
     address,
-    page: String(options?.page ?? 1),
-    offset: String(Math.min(100, options?.pageSize ?? 20)),
+    page: String(page),
+    offset: String(pageSize),
     sort: 'desc',
   };
   if (options?.contractAddress) params.contractaddress = options.contractAddress;
@@ -227,11 +264,24 @@ export async function getTokenTransfers(
 
 /**
  * Get native token balance for an address.
+ * Fallback chain: NodeReal → Etherscan V2 → RPC.
  */
 export async function getBalance(
   address: string,
   chainId: number = 56
 ): Promise<string> {
+  // 1. Try NodeReal (15 CU, very cheap)
+  if (chainId === 56) {
+    try {
+      const { noderealGetBalance } = await import('./nodereal');
+      const nrResult = await noderealGetBalance(address, chainId);
+      if (nrResult) return nrResult;
+    } catch {
+      // silent fallback
+    }
+  }
+
+  // 2. Etherscan V2
   const result = await etherscanV2<string>(chainId, {
     module: 'account',
     action: 'balance',
@@ -240,7 +290,7 @@ export async function getBalance(
   });
   if (result) return result;
 
-  // RPC fallback
+  // 3. RPC fallback
   try {
     const client = await getPublicClient(chainId);
     const balance = await client.getBalance({ address: address as `0x${string}` });

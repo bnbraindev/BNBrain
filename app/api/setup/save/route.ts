@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
       services?: {
         goplus?: { appKey: string; appSecret: string } | null;
         bscscan?: { apiKey: string } | null;
+        nodereal?: { apiKey: string } | null;
         serper?: { apiKey: string } | null;
         steel?: { apiKey: string; apiUrl?: string } | null;
         siwe?: { domain?: string; allowedChainIds?: string } | null;
@@ -120,6 +121,13 @@ export async function POST(request: NextRequest) {
         nextServices.bscscan = { apiKey: services.bscscan.apiKey.trim() };
       } else {
         delete nextServices.bscscan;
+      }
+    }
+    if (services && 'nodereal' in services) {
+      if (services.nodereal?.apiKey) {
+        nextServices.nodereal = { apiKey: services.nodereal.apiKey.trim() };
+      } else {
+        delete nextServices.nodereal;
       }
     }
     if (services && 'serper' in services) {

@@ -38,6 +38,7 @@ export default async function AdminSettingsPage({
         initialConfig={{
           goplus: setupConfig.services.goplus ?? null,
           bscscan: setupConfig.services.bscscan ?? null,
+          nodereal: setupConfig.services.nodereal ?? null,
           serper: setupConfig.services.serper ?? null,
           steel: setupConfig.services.steel ?? null,
           siwe: setupConfig.services.siwe ?? null,
@@ -48,6 +49,7 @@ export default async function AdminSettingsPage({
               process.env.BSCSCAN_API_KEY?.trim() ||
                 process.env.ETHERSCAN_API_KEY?.trim()
             ),
+            hasNoderealKey: Boolean(process.env.NODEREAL_API_KEY?.trim()),
             hasSerperKey: Boolean(process.env.SERPER_API_KEY?.trim()),
             hasSteelKey: Boolean(process.env.STEEL_API_KEY?.trim()),
             hasSiweDomain: Boolean(process.env.SIWE_DOMAIN?.trim()),

@@ -61,6 +61,13 @@ export async function GET(request: NextRequest) {
               process.env.ETHERSCAN_API_KEY?.trim()
           ),
         },
+        nodereal: {
+          configured: Boolean(
+            config.services.nodereal?.apiKey ||
+              process.env.NODEREAL_API_KEY?.trim()
+          ),
+          fromEnv: Boolean(process.env.NODEREAL_API_KEY?.trim()),
+        },
         serper: {
           configured: Boolean(
             config.services.serper?.apiKey ||
@@ -88,6 +95,7 @@ export async function GET(request: NextRequest) {
           process.env.BSCSCAN_API_KEY?.trim() ||
             process.env.ETHERSCAN_API_KEY?.trim()
         ),
+        hasNoderealKey: Boolean(process.env.NODEREAL_API_KEY?.trim()),
         hasSerperKey: Boolean(process.env.SERPER_API_KEY?.trim()),
         hasSteelKey: Boolean(process.env.STEEL_API_KEY?.trim()),
         hasSiweDomain: Boolean(process.env.SIWE_DOMAIN?.trim()),

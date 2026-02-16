@@ -58,6 +58,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(await validateGoPlus(config));
       case 'bscscan':
         return NextResponse.json(await validateBscScan(config));
+      case 'nodereal':
+        return NextResponse.json(await validateNodereal(config));
       case 'serper':
         return NextResponse.json(await validateSerper(config));
       case 'steel':
@@ -281,6 +283,73 @@ async function validateBscScan(config: Record<string, string>): Promise<{
         error instanceof Error
           ? `BscScan connection failed: ${error.message}`
           : 'BscScan connection failed',
+      latencyMs,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function validateNodereal(config: Record<string, string>): Promise<{
+  valid: boolean;
+  message: string;
+  latencyMs?: number;
+}> {
+  const { apiKey } = config;
+  if (!apiKey) return { valid: false, message: 'API key is required' };
+
+  const start = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
+
+  try {
+    // Simple eth_blockNumber call to validate the key (15 CU)
+    const url = `https://bsc-mainnet.nodereal.io/v1/${encodeURIComponent(apiKey)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_blockNumber',
+        params: [],
+        id: 1,
+      }),
+      signal: controller.signal,
+    });
+
+    const latencyMs = Date.now() - start;
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.result && !data.error) {
+        return {
+          valid: true,
+          message: `NodeReal API working (${latencyMs}ms)`,
+          latencyMs,
+        };
+      }
+      if (data.error) {
+        return {
+          valid: false,
+          message: `Invalid API key: ${data.error.message || 'authentication failed'}`,
+          latencyMs,
+        };
+      }
+    }
+
+    return {
+      valid: false,
+      message: `NodeReal API check failed (${response.status})`,
+      latencyMs,
+    };
+  } catch (error) {
+    const latencyMs = Date.now() - start;
+    return {
+      valid: false,
+      message:
+        error instanceof Error
+          ? `NodeReal connection failed: ${error.message}`
+          : 'NodeReal connection failed',
       latencyMs,
     };
   } finally {

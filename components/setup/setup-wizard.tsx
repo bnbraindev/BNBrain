@@ -27,6 +27,7 @@ interface SetupStatus {
     anthropic: { configured: boolean; fromEnv: boolean };
     goplus: { configured: boolean; fromEnv: boolean };
     bscscan: { configured: boolean; fromEnv: boolean };
+    nodereal?: { configured: boolean; fromEnv: boolean };
     serper: { configured: boolean; fromEnv: boolean };
     steel: { configured: boolean; fromEnv: boolean };
   };
@@ -36,6 +37,7 @@ interface SetupStatus {
     hasAnthropicKey: boolean;
     hasGoplusKey: boolean;
     hasBscscanKey: boolean;
+    hasNoderealKey?: boolean;
     hasSerperKey: boolean;
     hasSteelKey: boolean;
     hasSiweDomain: boolean;
@@ -88,6 +90,11 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   });
   const [bscscanKey, setBscscanKey] = useState('');
   const [bscscanValidation, setBscscanValidation] = useState<ValidationState>({
+    status: 'idle',
+    message: '',
+  });
+  const [noderealKey, setNoderealKey] = useState('');
+  const [noderealValidation, setNoderealValidation] = useState<ValidationState>({
     status: 'idle',
     message: '',
   });
@@ -229,6 +236,28 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     }
   }, [bscscanKey, t]);
 
+  const validateNodereal = useCallback(async () => {
+    setNoderealValidation({ status: 'testing', message: t.testing });
+    try {
+      const res = await fetch('/api/setup/validate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          service: 'nodereal',
+          config: { apiKey: noderealKey },
+        }),
+      });
+      const data = await res.json();
+      setNoderealValidation({
+        status: data.valid ? 'success' : 'error',
+        message: data.message,
+        latencyMs: data.latencyMs,
+      });
+    } catch {
+      setNoderealValidation({ status: 'error', message: t.connectionError });
+    }
+  }, [noderealKey, t]);
+
   const validateSerper = useCallback(async () => {
     setSerperValidation({ status: 'testing', message: t.testing });
     try {
@@ -347,6 +376,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       if (bscscanKey) {
         services.bscscan = { apiKey: bscscanKey };
       }
+      if (noderealKey) {
+        services.nodereal = { apiKey: noderealKey };
+      }
       if (serperKey) {
         services.serper = { apiKey: serperKey };
       }
@@ -397,6 +429,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     goplusKey,
     goplusSecret,
     bscscanKey,
+    noderealKey,
     serperKey,
     steelKey,
     steelUrl,
@@ -877,6 +910,65 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
               <div className="sidebar-gradient-sep mb-6" />
 
+              {/* NodeReal */}
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    NodeReal (BSC Enhanced)
+                  </h3>
+                  <a
+                    href="https://nodereal.io/meganode"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    {t.getKey}
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {t.noderealDesc}
+                </p>
+                {status?.envPreloaded.hasNoderealKey && (
+                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+                    <CheckCircle2 className="size-3.5 shrink-0" />
+                    {t.detectedFromEnv}
+                  </div>
+                )}
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={noderealKey}
+                    onChange={(e) => {
+                      setNoderealKey(e.target.value);
+                      setNoderealValidation({ status: 'idle', message: '' });
+                    }}
+                    placeholder="API Key"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                  />
+                  <div className="flex items-center justify-between">
+                    <Button
+                      onClick={validateNodereal}
+                      disabled={
+                        (!noderealKey && !status?.envPreloaded.hasNoderealKey) ||
+                        noderealValidation.status === 'testing'
+                      }
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                    >
+                      {noderealValidation.status === 'testing' ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : null}
+                      {t.test}
+                    </Button>
+                    {renderValidationBadge(noderealValidation)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="sidebar-gradient-sep mb-6" />
+
               {/* Serper */}
               <div className="mb-6">
                 <div className="mb-3 flex items-center justify-between">
@@ -1226,6 +1318,8 @@ const en = {
     'Provides token security scanning, address analysis, phishing detection, and more. Free tier works without credentials but with rate limits.',
   bscscanDesc:
     'Provides transaction history, contract source code, and balance queries. One API key works for BSC and 60+ EVM chains.',
+  noderealDesc:
+    'Free BSC enhanced API (100M CU/month). Provides transaction history and token transfers as a BscScan alternative.',
   serperDesc:
     'Provides Google Search and News results for deep token research and web intelligence.',
   steelDesc:
@@ -1276,6 +1370,8 @@ const zh: typeof en = {
     '提供代币安全扫描、地址分析、钓鱼检测等功能。免费版可不填但有频率限制。',
   bscscanDesc:
     '提供交易历史、合约源码、余额查询功能。一个 API Key 同时支持 BSC 和 60+ EVM 链。',
+  noderealDesc:
+    '免费 BSC 增强 API（每月 100M CU）。提供交易历史和代币转账查询，作为 BscScan 的替代方案。',
   serperDesc:
     '提供 Google 搜索和新闻结果，用于深度代币研究和网络情报分析。',
   steelDesc:

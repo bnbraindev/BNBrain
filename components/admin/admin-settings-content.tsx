@@ -25,6 +25,7 @@ interface AdminSettingsContentProps {
   initialConfig: {
     goplus: { appKey: string; appSecret: string } | null;
     bscscan: { apiKey: string } | null;
+    nodereal: { apiKey: string } | null;
     serper: { apiKey: string } | null;
     steel: { apiKey: string; apiUrl?: string } | null;
     siwe: { domain?: string; allowedChainIds?: string } | null;
@@ -32,6 +33,7 @@ interface AdminSettingsContentProps {
     envVars: {
       hasGoplusKey: boolean;
       hasBscscanKey: boolean;
+      hasNoderealKey: boolean;
       hasSerperKey: boolean;
       hasSteelKey: boolean;
       hasSiweDomain: boolean;
@@ -76,6 +78,16 @@ export function AdminSettingsContent({
   );
   const [showBscscanKey, setShowBscscanKey] = useState(false);
   const [bscscanValidation, setBscscanValidation] = useState<ValidationState>({
+    status: 'idle',
+    message: '',
+  });
+
+  // NodeReal
+  const [noderealKey, setNoderealKey] = useState(
+    initialConfig.nodereal?.apiKey ?? ''
+  );
+  const [showNoderealKey, setShowNoderealKey] = useState(false);
+  const [noderealValidation, setNoderealValidation] = useState<ValidationState>({
     status: 'idle',
     message: '',
   });
@@ -170,6 +182,27 @@ export function AdminSettingsContent({
       setBscscanValidation({ status: 'error', message: t.connectionError });
     }
   }, [bscscanKey, authHeaders, t]);
+
+  const validateNodereal = useCallback(async () => {
+    setNoderealValidation({ status: 'testing', message: t.testing });
+    try {
+      const res = await fetch('/api/setup/validate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...authHeaders },
+        body: JSON.stringify({
+          service: 'nodereal',
+          config: { apiKey: noderealKey },
+        }),
+      });
+      const data = await res.json();
+      setNoderealValidation({
+        status: data.valid ? 'success' : 'error',
+        message: data.message,
+      });
+    } catch {
+      setNoderealValidation({ status: 'error', message: t.connectionError });
+    }
+  }, [noderealKey, authHeaders, t]);
 
   const validateSerper = useCallback(async () => {
     setSerperValidation({ status: 'testing', message: t.testing });
@@ -270,6 +303,7 @@ export function AdminSettingsContent({
           ? { appKey: goplusKey, appSecret: goplusSecret }
           : null;
       services.bscscan = bscscanKey ? { apiKey: bscscanKey } : null;
+      services.nodereal = noderealKey ? { apiKey: noderealKey } : null;
       services.serper = serperKey ? { apiKey: serperKey } : null;
       services.steel = steelKey
         ? { apiKey: steelKey, apiUrl: steelUrl || undefined }
@@ -300,7 +334,7 @@ export function AdminSettingsContent({
       setSaving(false);
     }
   }, [
-    goplusKey, goplusSecret, bscscanKey, serperKey, steelKey, steelUrl,
+    goplusKey, goplusSecret, bscscanKey, noderealKey, serperKey, steelKey, steelUrl,
     siweDomain, siweChainIds, rpcUrl56, rpcUrl97, rpcUrl204, authHeaders, t,
   ]);
 
@@ -461,6 +495,56 @@ export function AdminSettingsContent({
               {t.test}
             </Button>
             {renderBadge(bscscanValidation)}
+          </div>
+        </div>
+      </div>
+
+      {/* NodeReal */}
+      <div className="rounded-2xl border border-border bg-card/80 p-5 shadow-lg backdrop-blur-lg">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">
+            NodeReal (BSC Enhanced)
+          </h3>
+          <a
+            href="https://nodereal.io/meganode"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            {t.getKey}
+            <ExternalLink className="size-3" />
+          </a>
+        </div>
+        <p className="mb-3 text-xs text-muted-foreground">{t.noderealDesc}</p>
+        {envBadge(initialConfig.envVars.hasNoderealKey)}
+        <div className="space-y-3">
+          <div className="relative">
+            <input
+              type={showNoderealKey ? 'text' : 'password'}
+              value={noderealKey}
+              onChange={(e) => {
+                setNoderealKey(e.target.value);
+                setNoderealValidation({ status: 'idle', message: '' });
+              }}
+              placeholder="API Key"
+              className={passwordInputClass}
+            />
+            {toggleButton(showNoderealKey, setShowNoderealKey)}
+          </div>
+          <div className="flex items-center justify-between">
+            <Button
+              onClick={validateNodereal}
+              disabled={!noderealKey || noderealValidation.status === 'testing'}
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+            >
+              {noderealValidation.status === 'testing' && (
+                <Loader2 className="size-3 animate-spin" />
+              )}
+              {t.test}
+            </Button>
+            {renderBadge(noderealValidation)}
           </div>
         </div>
       </div>
@@ -738,6 +822,8 @@ const en = {
     'Provides token security scanning, address analysis, and phishing detection. Free tier works without credentials.',
   bscscanDesc:
     'Provides transaction history, contract source code, and balance queries across 60+ EVM chains.',
+  noderealDesc:
+    'Free BSC enhanced API (100M CU/month). Provides transaction history and token transfers as a BscScan alternative.',
   serperDesc:
     'Provides Google Search and News results for deep token research and web intelligence.',
   steelDesc:
@@ -765,6 +851,8 @@ const zh: typeof en = {
     '提供代币安全扫描、地址分析、钓鱼检测等功能。免费版可不填但有频率限制。',
   bscscanDesc:
     '提供交易历史、合约源码、余额查询功能，一个 API Key 支持 60+ EVM 链。',
+  noderealDesc:
+    '免费 BSC 增强 API（每月 100M CU）。提供交易历史和代币转账查询，作为 BscScan 的替代方案。',
   serperDesc:
     '提供 Google 搜索和新闻结果，用于深度代币研究和网络情报分析。',
   steelDesc:

@@ -13,6 +13,7 @@ const CACHE_TTL = 60_000;
 export interface SetupServiceConfig {
   goplus?: { appKey: string; appSecret: string };
   bscscan?: { apiKey: string };
+  nodereal?: { apiKey: string };
   serper?: { apiKey: string };
   steel?: { apiKey: string; apiUrl?: string };
   siwe?: { domain?: string; allowedChainIds?: string };
@@ -147,6 +148,14 @@ export async function resolveBscScanApiKey(): Promise<string> {
     return config.services.bscscan.apiKey;
   }
   return process.env.BSCSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
+}
+
+export async function resolveNoderealApiKey(): Promise<string> {
+  const config = await getSetupConfig();
+  if (config.services.nodereal?.apiKey) {
+    return config.services.nodereal.apiKey;
+  }
+  return process.env.NODEREAL_API_KEY ?? '';
 }
 
 export async function resolveSerperApiKey(): Promise<string> {
