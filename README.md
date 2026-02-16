@@ -6,8 +6,6 @@ English | [中文](README.zh-CN.md)
 
 **Live Demo**: [https://app.bnbrain.dev](https://app.bnbrain.dev)
 
-**Hackathon**: Good Vibes Only: OpenClaw Edition (Agent Track)
-
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
 
 ---

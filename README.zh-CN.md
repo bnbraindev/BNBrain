@@ -6,8 +6,6 @@
 
 **在线演示**: [https://app.bnbrain.dev](https://app.bnbrain.dev)
 
-**黑客松**: Good Vibes Only: OpenClaw Edition (Agent 赛道)
-
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
 
 ---
