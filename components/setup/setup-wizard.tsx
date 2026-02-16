@@ -38,6 +38,9 @@ interface SetupStatus {
     hasBscscanKey: boolean;
     hasSerperKey: boolean;
     hasSteelKey: boolean;
+    hasSiweDomain: boolean;
+    hasSiweChainIds: boolean;
+    hasRpcUrls: boolean;
   };
 }
 
@@ -64,6 +67,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [saving, setSaving] = useState(false);
 
   // Step 0: AI Model
+  const [displayName, setDisplayName] = useState('');
   const [protocol, setProtocol] = useState<'anthropic' | 'openai'>('anthropic');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('https://api.anthropic.com');
@@ -95,6 +99,23 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [steelKey, setSteelKey] = useState('');
   const [steelUrl, setSteelUrl] = useState('');
   const [steelValidation, setSteelValidation] = useState<ValidationState>({
+    status: 'idle',
+    message: '',
+  });
+
+  // SIWE
+  const [siweDomain, setSiweDomain] = useState('');
+  const [siweChainIds, setSiweChainIds] = useState('');
+  const [siweValidation, setSiweValidation] = useState<ValidationState>({
+    status: 'idle',
+    message: '',
+  });
+
+  // RPC URLs
+  const [rpcUrl56, setRpcUrl56] = useState('');
+  const [rpcUrl97, setRpcUrl97] = useState('');
+  const [rpcUrl204, setRpcUrl204] = useState('');
+  const [rpcValidation, setRpcValidation] = useState<ValidationState>({
     status: 'idle',
     message: '',
   });
@@ -252,6 +273,50 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     }
   }, [steelKey, steelUrl, t]);
 
+  const validateSiwe = useCallback(async () => {
+    setSiweValidation({ status: 'testing', message: t.testing });
+    try {
+      const res = await fetch('/api/setup/validate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          service: 'siwe',
+          config: { domain: siweDomain || undefined, allowedChainIds: siweChainIds || undefined },
+        }),
+      });
+      const data = await res.json();
+      setSiweValidation({
+        status: data.valid ? 'success' : 'error',
+        message: data.message,
+        latencyMs: data.latencyMs,
+      });
+    } catch {
+      setSiweValidation({ status: 'error', message: t.connectionError });
+    }
+  }, [siweDomain, siweChainIds, t]);
+
+  const validateRpc = useCallback(async () => {
+    setRpcValidation({ status: 'testing', message: t.testing });
+    try {
+      const res = await fetch('/api/setup/validate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          service: 'rpc',
+          config: { url56: rpcUrl56 || undefined, url97: rpcUrl97 || undefined, url204: rpcUrl204 || undefined },
+        }),
+      });
+      const data = await res.json();
+      setRpcValidation({
+        status: data.valid ? 'success' : 'error',
+        message: data.message,
+        latencyMs: data.latencyMs,
+      });
+    } catch {
+      setRpcValidation({ status: 'error', message: t.connectionError });
+    }
+  }, [rpcUrl56, rpcUrl97, rpcUrl204, t]);
+
   // ── Save & Complete ─────────────────────────────────────
 
   const handleComplete = useCallback(async () => {
@@ -264,7 +329,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       // Include model if not already configured
       if (!status?.hasModels && modelValidation.status === 'success') {
         payload.model = {
-          displayName: `${model}`,
+          displayName: displayName.trim() || model,
           protocol,
           baseUrl,
           providerModelId: model,
@@ -288,6 +353,19 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       if (steelKey) {
         services.steel = { apiKey: steelKey, apiUrl: steelUrl || undefined };
       }
+      if (siweDomain || siweChainIds) {
+        services.siwe = {
+          domain: siweDomain || undefined,
+          allowedChainIds: siweChainIds || undefined,
+        };
+      }
+      if (rpcUrl56 || rpcUrl97 || rpcUrl204) {
+        services.rpc = {
+          url56: rpcUrl56 || undefined,
+          url97: rpcUrl97 || undefined,
+          url204: rpcUrl204 || undefined,
+        };
+      }
 
       const res = await fetch('/api/setup/save', {
         method: 'POST',
@@ -310,6 +388,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   }, [
     status,
     modelValidation,
+    displayName,
     protocol,
     baseUrl,
     model,
@@ -321,6 +400,11 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     serperKey,
     steelKey,
     steelUrl,
+    siweDomain,
+    siweChainIds,
+    rpcUrl56,
+    rpcUrl97,
+    rpcUrl204,
     onComplete,
   ]);
 
@@ -440,6 +524,20 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
               {!status?.hasModels && (
                 <div className="space-y-4">
+                  {/* Display Name */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                      {t.displayName}
+                    </label>
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder={t.displayNamePlaceholder}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                    />
+                  </div>
+
                   {/* Protocol selector */}
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
@@ -898,6 +996,148 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                   </div>
                 </div>
               </div>
+
+              {/* Advanced: SIWE + RPC */}
+              <details className="group mt-6 rounded-xl border border-border/50 bg-card/40">
+                <summary className="flex cursor-pointer items-center gap-1.5 px-4 py-3 text-xs font-medium text-muted-foreground hover:text-foreground">
+                  <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
+                  {t.advancedServices}
+                </summary>
+                <div className="space-y-6 px-4 pb-4 pt-2">
+                  {/* SIWE */}
+                  <div>
+                    <h3 className="mb-1 text-sm font-semibold text-foreground">
+                      SIWE ({t.siweLabel})
+                    </h3>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      {t.siweDesc}
+                    </p>
+                    {(status?.envPreloaded.hasSiweDomain || status?.envPreloaded.hasSiweChainIds) && (
+                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+                        <CheckCircle2 className="size-3.5 shrink-0" />
+                        {t.detectedFromEnv}
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={siweDomain}
+                        onChange={(e) => {
+                          setSiweDomain(e.target.value);
+                          setSiweValidation({ status: 'idle', message: '' });
+                        }}
+                        placeholder={t.siweDomainPlaceholder}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={siweChainIds}
+                        onChange={(e) => {
+                          setSiweChainIds(e.target.value);
+                          setSiweValidation({ status: 'idle', message: '' });
+                        }}
+                        placeholder={t.siweChainIdsPlaceholder}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                      />
+                      <div className="flex items-center justify-between">
+                        <Button
+                          onClick={validateSiwe}
+                          disabled={
+                            (!siweDomain && !siweChainIds) ||
+                            siweValidation.status === 'testing'
+                          }
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                        >
+                          {siweValidation.status === 'testing' ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : null}
+                          {t.test}
+                        </Button>
+                        {renderValidationBadge(siweValidation)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="sidebar-gradient-sep" />
+
+                  {/* RPC URLs */}
+                  <div>
+                    <h3 className="mb-1 text-sm font-semibold text-foreground">
+                      {t.rpcTitle}
+                    </h3>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      {t.rpcDesc}
+                    </p>
+                    {status?.envPreloaded.hasRpcUrls && (
+                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+                        <CheckCircle2 className="size-3.5 shrink-0" />
+                        {t.detectedFromEnv}
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">BSC Mainnet (Chain 56)</label>
+                        <input
+                          type="text"
+                          value={rpcUrl56}
+                          onChange={(e) => {
+                            setRpcUrl56(e.target.value);
+                            setRpcValidation({ status: 'idle', message: '' });
+                          }}
+                          placeholder="https://bsc-dataseed.binance.org"
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">BSC Testnet (Chain 97)</label>
+                        <input
+                          type="text"
+                          value={rpcUrl97}
+                          onChange={(e) => {
+                            setRpcUrl97(e.target.value);
+                            setRpcValidation({ status: 'idle', message: '' });
+                          }}
+                          placeholder="https://data-seed-prebsc-1-s1.binance.org:8545"
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">opBNB (Chain 204)</label>
+                        <input
+                          type="text"
+                          value={rpcUrl204}
+                          onChange={(e) => {
+                            setRpcUrl204(e.target.value);
+                            setRpcValidation({ status: 'idle', message: '' });
+                          }}
+                          placeholder="https://opbnb-mainnet-rpc.bnbchain.org"
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Button
+                          onClick={validateRpc}
+                          disabled={
+                            (!rpcUrl56 && !rpcUrl97 && !rpcUrl204) ||
+                            rpcValidation.status === 'testing'
+                          }
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                        >
+                          {rpcValidation.status === 'testing' ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : null}
+                          {t.test}
+                        </Button>
+                        {renderValidationBadge(rpcValidation)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </details>
             </div>
 
             {/* Navigation */}
@@ -984,6 +1224,17 @@ const en = {
     'Provides Google Search and News results for deep token research and web intelligence.',
   steelDesc:
     'Headless browser for scraping SPA websites. Optional fallback for web search.',
+  displayName: 'Display Name',
+  displayNamePlaceholder: 'e.g. Claude Sonnet 4.5',
+  advancedServices: 'Advanced: Wallet Login & RPC Endpoints',
+  siweLabel: 'Wallet Login',
+  siweDesc:
+    'Configure SIWE (Sign-In with Ethereum) wallet login domain and allowed chain IDs.',
+  siweDomainPlaceholder: 'Domain, e.g. app.bnbrain.dev',
+  siweChainIdsPlaceholder: 'Chain IDs, e.g. 56,97,204',
+  rpcTitle: 'RPC Endpoints',
+  rpcDesc:
+    'Custom RPC endpoints for blockchain data queries. Leave empty to use public default nodes.',
   detectedFromEnv: 'Detected from environment variables',
   test: 'Test',
   skipAndFinish: 'Skip & Finish',
@@ -1023,6 +1274,17 @@ const zh: typeof en = {
     '提供 Google 搜索和新闻结果，用于深度代币研究和网络情报分析。',
   steelDesc:
     '无头浏览器，用于抓取 SPA 网站。可选的网络搜索备选方案。',
+  displayName: '显示名称',
+  displayNamePlaceholder: '例如 Claude Sonnet 4.5',
+  advancedServices: '高级配置：钱包登录与 RPC 节点',
+  siweLabel: '钱包登录',
+  siweDesc:
+    '配置 SIWE（Sign-In with Ethereum）钱包登录的域名和允许的链 ID。',
+  siweDomainPlaceholder: '域名，例如 app.bnbrain.dev',
+  siweChainIdsPlaceholder: '链 ID，例如 56,97,204',
+  rpcTitle: 'RPC 节点',
+  rpcDesc:
+    '自定义 RPC 节点地址，用于区块链数据查询。留空将使用公共默认节点。',
   detectedFromEnv: '已从环境变量检测到',
   test: '测试',
   skipAndFinish: '跳过并完成',
