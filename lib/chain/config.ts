@@ -3,7 +3,7 @@ import { http } from 'wagmi';
 import {
   getContracts as getPancakeContracts,
   getChainTokens,
-} from '@/lib/services/pancakeswap';
+} from '@/lib/services/pancakeswap-data';
 
 export const supportedChains = [bsc, bscTestnet] as const;
 

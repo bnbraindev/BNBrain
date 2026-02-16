@@ -125,13 +125,15 @@ const sdk: GoPlusSdk = require('@goplus/sdk-node').GoPlus;
 
 // ── Authentication ──────────────────────────────────────────
 
-let sdkConfigured = false;
+let lastConfiguredKey = '';
+let lastConfiguredSecret = '';
 let tokenExpiresAt = 0;
 
 /**
  * Get an access token for authenticated GoPlus API calls.
  * Returns null if no credentials are configured (free tier still works).
  * Resolves credentials from DB setup config first, then env vars.
+ * Re-configures SDK automatically when credentials change (e.g. admin update).
  */
 export async function getAccessToken(): Promise<string | null> {
   let appKey: string | undefined;
@@ -150,9 +152,12 @@ export async function getAccessToken(): Promise<string | null> {
   }
   if (!appKey || !appSecret) return null;
 
-  if (!sdkConfigured) {
+  // Re-configure SDK when credentials change
+  if (appKey !== lastConfiguredKey || appSecret !== lastConfiguredSecret) {
     sdk.config(appKey, appSecret, 30);
-    sdkConfigured = true;
+    lastConfiguredKey = appKey;
+    lastConfiguredSecret = appSecret;
+    tokenExpiresAt = 0; // force token refresh
   }
 
   if (tokenExpiresAt > 0 && Date.now() < tokenExpiresAt - 60_000) {
@@ -169,6 +174,16 @@ export async function getAccessToken(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Reset cached SDK credentials so the next API call forces re-configuration.
+ * Call this after external code (e.g. validate route) mutates the global SDK singleton.
+ */
+export function invalidateGoPlusAuth(): void {
+  lastConfiguredKey = '';
+  lastConfiguredSecret = '';
+  tokenExpiresAt = 0;
 }
 
 async function ensureAuth(): Promise<void> {

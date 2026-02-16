@@ -1,4 +1,5 @@
 import { serviceFetch } from '@/lib/services/http-client';
+import { resolveSteelConfig } from '@/lib/server/setup-store';
 
 export interface ScrapeResult {
   markdown: string;
@@ -18,17 +19,12 @@ export interface WebSearchOptions {
   site?: string;
 }
 
-function getSteelConfig() {
-  const apiKey = process.env.STEEL_API_KEY?.trim();
-  const apiUrl = process.env.STEEL_API_URL?.trim() || 'https://api.steel.dev';
-  return { apiKey, apiUrl };
-}
-
 export async function scrapePage(url: string, delayMs?: number): Promise<ScrapeResult> {
-  const { apiKey, apiUrl } = getSteelConfig();
-  if (!apiKey) {
+  const steelConfig = await resolveSteelConfig();
+  if (!steelConfig) {
     return { markdown: '', title: null, links: [] };
   }
+  const { apiKey, apiUrl } = steelConfig;
 
   const response = await serviceFetch<{
     content?: { markdown?: string };
@@ -101,8 +97,8 @@ export async function webSearch(
   query: string,
   options?: WebSearchOptions
 ): Promise<WebSearchResult[]> {
-  const { apiKey } = getSteelConfig();
-  if (!apiKey) {
+  const steelConfig = await resolveSteelConfig();
+  if (!steelConfig) {
     return [];
   }
 

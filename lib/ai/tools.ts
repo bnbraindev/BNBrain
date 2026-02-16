@@ -2,7 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { tokenSecurity, addressSecurity, phishingSite, dappSecurity, signatureDecode, nftSecurity, approvalSecurity } from '@/lib/services/goplus';
 import { getTokenPrice, getLatestTokens, searchToken } from '@/lib/services/dexscreener';
-import { getPublicClient } from '@/lib/chain/client';
+import { getPublicClient } from '@/lib/chain/server-client';
 import { ERC20_ABI } from '@/lib/utils/constants';
 import { formatEther, formatUnits, parseEther, parseUnits, isAddress as viemIsAddress, encodeFunctionData, encodeDeployData, type Abi } from 'viem';
 
@@ -353,7 +353,7 @@ export const aiTools = {
         }
         const wallet = normalizeAddress(walletAddress);
 
-        const client = getPublicClient(chainId);
+        const client = await getPublicClient(chainId);
         const balances: Array<{ symbol: string; address: string; balance: string; decimals: number }> = [];
 
         const nativeBalance = await client.getBalance({ address: wallet });
@@ -454,7 +454,7 @@ export const aiTools = {
           if (!isAddress(tokenAddress)) {
             return { error: 'Invalid token address' };
           }
-          const client = getPublicClient(chainId);
+          const client = await getPublicClient(chainId);
           const decimals = (await client.readContract({
             address: tokenAddress as `0x${string}`,
             abi: ERC20_ABI,
@@ -778,7 +778,7 @@ export const aiTools = {
           return { error: `PancakeSwap V2 is not available on chain ${chainId}` };
         }
 
-        const client = getPublicClient(chainId);
+        const client = await getPublicClient(chainId);
         const contracts = pancakeswap.getContracts(chainId)!;
         const ZERO = '0x0000000000000000000000000000000000000000' as `0x${string}`;
         const actualTokenIn = tokenIn.toUpperCase() === 'BNB'
@@ -888,7 +888,7 @@ export const aiTools = {
           return { error: 'Invalid wallet address' };
         }
         const wallet = normalizeAddress(walletAddress);
-        const client = getPublicClient(chainId);
+        const client = await getPublicClient(chainId);
         const approvalEvents = await scanApprovalEvents(wallet, chainId);
 
         // Enrich with token symbols
@@ -952,7 +952,7 @@ export const aiTools = {
         if (!isAddress(tokenAddress) || !isAddress(spenderAddress) || !isAddress(walletAddress)) {
           return { error: 'Invalid token, spender, or wallet address' };
         }
-        const client = getPublicClient(chainId);
+        const client = await getPublicClient(chainId);
         const symbol = (await client.readContract({
           address: tokenAddress as `0x${string}`,
           abi: ERC20_ABI,
@@ -989,7 +989,7 @@ export const aiTools = {
           return { error: 'Invalid wallet address' };
         }
         const wallet = normalizeAddress(walletAddress);
-        const client = getPublicClient(chainId);
+        const client = await getPublicClient(chainId);
         const issues: string[] = [];
         const recommendations: string[] = [];
         let score = 100;
@@ -1193,7 +1193,7 @@ export const aiTools = {
           return { error: 'Invalid target address' };
         }
 
-        const client = getPublicClient(chainId);
+        const client = await getPublicClient(chainId);
 
         // Check if target is a contract
         const code = await client.getCode({ address: to as `0x${string}` });
@@ -1307,7 +1307,7 @@ export const aiTools = {
           return { error: `ReportRegistry not deployed on chain ${chainId}` };
         }
 
-        const client = getPublicClient(chainId);
+        const client = await getPublicClient(chainId);
         const exists = await client.readContract({
           address: registryAddr,
           abi: [
@@ -1405,7 +1405,7 @@ export const aiTools = {
         if (!isAddress(address)) return { error: 'Invalid address' };
         const addr = normalizeAddress(address);
 
-        const client = getPublicClient(chainId);
+        const client = await getPublicClient(chainId);
 
         // Gather data in parallel
         const [bnbBalance, txHistory, approvals] = await Promise.all([

@@ -8,6 +8,8 @@
 
 **黑客松**: Good Vibes Only: OpenClaw Edition (Agent 赛道)
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/YOUR_TEMPLATE_ID)
+
 ---
 
 ## BNBrain 是什么？
@@ -107,30 +109,61 @@ BNBrain 是一个能在 BNB Chain 上**执行真实操作**的 AI 代理。不�
 
 ## 快速开始
 
-### 前置条件
+### 方式一：一键部署到 Railway（推荐）
 
-- Node.js 22+
-- PostgreSQL 16+
-- Anthropic API Key
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/YOUR_TEMPLATE_ID)
 
-### 安装
+1. 点击上方按钮 — Railway 自动创建应用 + PostgreSQL 数据库
+2. 等待约 3 分钟完成构建
+3. 打开应用地址 — 首次访问会看到**初始化向导**
+4. 输入 Anthropic API Key 和可选的服务密钥
+5. 完成！开始和 AI 代理对话
+
+> 部署时无需填写任何环境变量。所有配置通过内置的可视化初始化向导完成。
+
+### 方式二：Docker 自部署
+
+```bash
+git clone https://github.com/bnbraindev/BNBrain.git
+cd bnb-ai
+cp .env.example .env
+# 编辑 .env — 只需填 DATABASE_URL，其他密钥可通过初始化向导配置
+docker compose up -d
+# 打开 http://localhost:3000
+```
+
+### 方式三：本地开发
+
+**前置条件**：Node.js 22+、PostgreSQL 16+
 
 ```bash
 git clone https://github.com/bnbraindev/BNBrain.git
 cd bnb-ai
 npm install
 cp .env.example .env.local
-# 编辑 .env.local 填入你的密钥
+# 编辑 .env.local 填入 DATABASE_URL
 npm run dev
 # 打开 http://localhost:3099
 ```
 
-### Docker 部署
+### 环境变量
 
-```bash
-docker compose up -d
-# 应用运行在 3000 端口
-```
+只需 `DATABASE_URL`。所有其他设置都可以在部署后通过**初始化向导**和**管理后台**配置：
+
+| 变量 | 必填 | UI 可配置 | 说明 |
+|------|------|----------|------|
+| `DATABASE_URL` | 是 | 否 | PostgreSQL 连接字符串 |
+| `ANTHROPIC_API_KEY` | 否 | 初始化向导 | AI 服务 API Key |
+| `ANTHROPIC_BASE_URL` | 否 | 初始化向导 | 自定义 API 端点 |
+| `ETHERSCAN_API_KEY` | 否 | 管理后台 | BscScan/Etherscan V2 |
+| `GOPLUS_APP_KEY/SECRET` | 否 | 管理后台 | GoPlus Security |
+| `SERPER_API_KEY` | 否 | 管理后台 | Google 搜索（Serper.dev） |
+| `STEEL_API_KEY` | 否 | 管理后台 | 网页抓取（Steel.dev） |
+| `SIWE_DOMAIN` | 否 | 管理后台 | 认证域名锁定 |
+| `SIWE_ALLOWED_CHAIN_IDS` | 否 | 管理后台 | 限制认证链 |
+| `RPC_URL_56/97/204` | 否 | 管理后台 | 自定义 RPC 端点 |
+| `NEXT_PUBLIC_WC_PROJECT_ID` | 否 | 否（构建时） | WalletConnect 项目 ID |
+| `ADMIN_DASHBOARD_TOKEN` | 否 | 否（仅环境变量） | 管理后台访问令牌 |
 
 ---
 
@@ -161,7 +194,7 @@ npx tsx -r tsconfig-paths/register tests/e2e/prompt-intelligence.test.ts
 | 区块链 | wagmi, viem, RainbowKit |
 | 数据库 | PostgreSQL 17, pg 驱动 |
 | 认证 | SIWE（以太坊签名登录） |
-| 部署 | Docker, Cloudflare Tunnel |
+| 部署 | Docker, Railway, Cloudflare Tunnel |
 
 ---
 

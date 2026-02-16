@@ -27,6 +27,8 @@ interface SetupStatus {
     anthropic: { configured: boolean; fromEnv: boolean };
     goplus: { configured: boolean; fromEnv: boolean };
     bscscan: { configured: boolean; fromEnv: boolean };
+    serper: { configured: boolean; fromEnv: boolean };
+    steel: { configured: boolean; fromEnv: boolean };
   };
   envPreloaded: {
     anthropicBaseUrl: string;
@@ -34,6 +36,8 @@ interface SetupStatus {
     hasAnthropicKey: boolean;
     hasGoplusKey: boolean;
     hasBscscanKey: boolean;
+    hasSerperKey: boolean;
+    hasSteelKey: boolean;
   };
 }
 
@@ -80,6 +84,17 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   });
   const [bscscanKey, setBscscanKey] = useState('');
   const [bscscanValidation, setBscscanValidation] = useState<ValidationState>({
+    status: 'idle',
+    message: '',
+  });
+  const [serperKey, setSerperKey] = useState('');
+  const [serperValidation, setSerperValidation] = useState<ValidationState>({
+    status: 'idle',
+    message: '',
+  });
+  const [steelKey, setSteelKey] = useState('');
+  const [steelUrl, setSteelUrl] = useState('');
+  const [steelValidation, setSteelValidation] = useState<ValidationState>({
     status: 'idle',
     message: '',
   });
@@ -193,6 +208,50 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     }
   }, [bscscanKey, t]);
 
+  const validateSerper = useCallback(async () => {
+    setSerperValidation({ status: 'testing', message: t.testing });
+    try {
+      const res = await fetch('/api/setup/validate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          service: 'serper',
+          config: { apiKey: serperKey },
+        }),
+      });
+      const data = await res.json();
+      setSerperValidation({
+        status: data.valid ? 'success' : 'error',
+        message: data.message,
+        latencyMs: data.latencyMs,
+      });
+    } catch {
+      setSerperValidation({ status: 'error', message: t.connectionError });
+    }
+  }, [serperKey, t]);
+
+  const validateSteel = useCallback(async () => {
+    setSteelValidation({ status: 'testing', message: t.testing });
+    try {
+      const res = await fetch('/api/setup/validate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          service: 'steel',
+          config: { apiKey: steelKey, apiUrl: steelUrl || undefined },
+        }),
+      });
+      const data = await res.json();
+      setSteelValidation({
+        status: data.valid ? 'success' : 'error',
+        message: data.message,
+        latencyMs: data.latencyMs,
+      });
+    } catch {
+      setSteelValidation({ status: 'error', message: t.connectionError });
+    }
+  }, [steelKey, steelUrl, t]);
+
   // ── Save & Complete ─────────────────────────────────────
 
   const handleComplete = useCallback(async () => {
@@ -222,6 +281,12 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       }
       if (bscscanKey) {
         services.bscscan = { apiKey: bscscanKey };
+      }
+      if (serperKey) {
+        services.serper = { apiKey: serperKey };
+      }
+      if (steelKey) {
+        services.steel = { apiKey: steelKey, apiUrl: steelUrl || undefined };
       }
 
       const res = await fetch('/api/setup/save', {
@@ -253,6 +318,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     goplusKey,
     goplusSecret,
     bscscanKey,
+    serperKey,
+    steelKey,
+    steelUrl,
     onComplete,
   ]);
 
@@ -702,6 +770,134 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                   </div>
                 </div>
               </div>
+
+              <div className="sidebar-gradient-sep mb-6" />
+
+              {/* Serper */}
+              <div className="mb-6">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Serper (Google Search)
+                  </h3>
+                  <a
+                    href="https://serper.dev/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    {t.getKey}
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {t.serperDesc}
+                </p>
+                {status?.envPreloaded.hasSerperKey && (
+                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+                    <CheckCircle2 className="size-3.5 shrink-0" />
+                    {t.detectedFromEnv}
+                  </div>
+                )}
+                <div className="space-y-3">
+                  <input
+                    type="password"
+                    value={serperKey}
+                    onChange={(e) => {
+                      setSerperKey(e.target.value);
+                      setSerperValidation({ status: 'idle', message: '' });
+                    }}
+                    placeholder="API Key"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                  />
+                  <div className="flex items-center justify-between">
+                    <Button
+                      onClick={validateSerper}
+                      disabled={
+                        !serperKey && !status?.envPreloaded.hasSerperKey ||
+                        serperValidation.status === 'testing'
+                      }
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                    >
+                      {serperValidation.status === 'testing' ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : null}
+                      {t.test}
+                    </Button>
+                    {renderValidationBadge(serperValidation)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="sidebar-gradient-sep mb-6" />
+
+              {/* Steel */}
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Steel (Web Scraper)
+                  </h3>
+                  <a
+                    href="https://steel.dev/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    {t.getKey}
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {t.steelDesc}
+                </p>
+                {status?.envPreloaded.hasSteelKey && (
+                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+                    <CheckCircle2 className="size-3.5 shrink-0" />
+                    {t.detectedFromEnv}
+                  </div>
+                )}
+                <div className="space-y-3">
+                  <input
+                    type="password"
+                    value={steelKey}
+                    onChange={(e) => {
+                      setSteelKey(e.target.value);
+                      setSteelValidation({ status: 'idle', message: '' });
+                    }}
+                    placeholder="API Key"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={steelUrl}
+                    onChange={(e) => {
+                      setSteelUrl(e.target.value);
+                      setSteelValidation({ status: 'idle', message: '' });
+                    }}
+                    placeholder="https://api.steel.dev"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
+                  />
+                  <div className="flex items-center justify-between">
+                    <Button
+                      onClick={validateSteel}
+                      disabled={
+                        !steelKey && !status?.envPreloaded.hasSteelKey ||
+                        steelValidation.status === 'testing'
+                      }
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                    >
+                      {steelValidation.status === 'testing' ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : null}
+                      {t.test}
+                    </Button>
+                    {renderValidationBadge(steelValidation)}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Navigation */}
@@ -784,6 +980,10 @@ const en = {
     'Provides token security scanning, address analysis, phishing detection, and more. Free tier works without credentials but with rate limits.',
   bscscanDesc:
     'Provides transaction history, contract source code, and balance queries. One API key works for BSC and 60+ EVM chains.',
+  serperDesc:
+    'Provides Google Search and News results for deep token research and web intelligence.',
+  steelDesc:
+    'Headless browser for scraping SPA websites. Optional fallback for web search.',
   detectedFromEnv: 'Detected from environment variables',
   test: 'Test',
   skipAndFinish: 'Skip & Finish',
@@ -819,6 +1019,10 @@ const zh: typeof en = {
     '提供代币安全扫描、地址分析、钓鱼检测等功能。免费版可不填但有频率限制。',
   bscscanDesc:
     '提供交易历史、合约源码、余额查询功能。一个 API Key 同时支持 BSC 和 60+ EVM 链。',
+  serperDesc:
+    '提供 Google 搜索和新闻结果，用于深度代币研究和网络情报分析。',
+  steelDesc:
+    '无头浏览器，用于抓取 SPA 网站。可选的网络搜索备选方案。',
   detectedFromEnv: '已从环境变量检测到',
   test: '测试',
   skipAndFinish: '跳过并完成',

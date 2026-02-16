@@ -13,6 +13,10 @@ const CACHE_TTL = 60_000;
 export interface SetupServiceConfig {
   goplus?: { appKey: string; appSecret: string };
   bscscan?: { apiKey: string };
+  serper?: { apiKey: string };
+  steel?: { apiKey: string; apiUrl?: string };
+  siwe?: { domain?: string; allowedChainIds?: string };
+  rpc?: { url56?: string; url97?: string; url204?: string };
 }
 
 export interface SetupConfig {
@@ -143,4 +147,70 @@ export async function resolveBscScanApiKey(): Promise<string> {
     return config.services.bscscan.apiKey;
   }
   return process.env.BSCSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
+}
+
+export async function resolveSerperApiKey(): Promise<string> {
+  const config = await getSetupConfig();
+  if (config.services.serper?.apiKey) {
+    return config.services.serper.apiKey;
+  }
+  return process.env.SERPER_API_KEY ?? '';
+}
+
+export async function resolveSteelConfig(): Promise<{
+  apiKey: string;
+  apiUrl: string;
+} | null> {
+  const config = await getSetupConfig();
+  const dbSteel = config.services.steel;
+  if (dbSteel?.apiKey) {
+    return {
+      apiKey: dbSteel.apiKey,
+      apiUrl: dbSteel.apiUrl?.trim() || 'https://api.steel.dev',
+    };
+  }
+  const envKey = process.env.STEEL_API_KEY?.trim();
+  if (envKey) {
+    return {
+      apiKey: envKey,
+      apiUrl: process.env.STEEL_API_URL?.trim() || 'https://api.steel.dev',
+    };
+  }
+  return null;
+}
+
+export async function resolveSiweDomain(): Promise<string | undefined> {
+  const config = await getSetupConfig();
+  if (config.services.siwe?.domain) {
+    return config.services.siwe.domain;
+  }
+  return process.env.SIWE_DOMAIN?.trim() || undefined;
+}
+
+export async function resolveSiweAllowedChainIds(): Promise<string | undefined> {
+  const config = await getSetupConfig();
+  if (config.services.siwe?.allowedChainIds) {
+    return config.services.siwe.allowedChainIds;
+  }
+  return process.env.SIWE_ALLOWED_CHAIN_IDS?.trim() || undefined;
+}
+
+const DEFAULT_RPC_URLS = {
+  url56: 'https://bsc-dataseed.binance.org',
+  url97: 'https://bsc-testnet-dataseed.bnbchain.org',
+  url204: 'https://opbnb-mainnet-rpc.bnbchain.org',
+};
+
+export async function resolveRpcUrls(): Promise<{
+  url56: string;
+  url97: string;
+  url204: string;
+}> {
+  const config = await getSetupConfig();
+  const dbRpc = config.services.rpc;
+  return {
+    url56: dbRpc?.url56?.trim() || process.env.RPC_URL_56 || DEFAULT_RPC_URLS.url56,
+    url97: dbRpc?.url97?.trim() || process.env.RPC_URL_97 || DEFAULT_RPC_URLS.url97,
+    url204: dbRpc?.url204?.trim() || process.env.RPC_URL_204 || DEFAULT_RPC_URLS.url204,
+  };
 }

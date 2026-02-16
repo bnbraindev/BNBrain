@@ -8,6 +8,7 @@
  */
 
 import { serviceFetch } from './http-client';
+import { resolveSerperApiKey } from '@/lib/server/setup-store';
 
 const SERVICE = 'serper';
 const BASE = 'https://google.serper.dev';
@@ -64,7 +65,7 @@ export async function serperSearch(
   query: string,
   options?: SerperSearchOptions
 ): Promise<SerperResult[]> {
-  const apiKey = process.env.SERPER_API_KEY;
+  const apiKey = await resolveSerperApiKey();
   if (!apiKey) return [];
 
   const limit = options?.limit ?? 10;

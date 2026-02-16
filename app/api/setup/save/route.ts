@@ -3,10 +3,12 @@ import {
   isSetupCompleted,
   getSetupConfig,
   saveSetupConfig,
-  invalidateSetupCache,
 } from '@/lib/server/setup-store';
+import { invalidateRpcClients } from '@/lib/chain/server-client';
 import { createChatModel } from '@/lib/server/chat-model-store';
 import type { ChatModelProtocol, ChatModelAuthMode } from '@/lib/server/chat-model-store';
+import { isAuthorizedAdmin, readBearerToken } from '@/lib/server/admin-auth';
+import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
 
 /**
  * POST /api/setup/save
@@ -25,6 +27,19 @@ export async function POST(request: NextRequest) {
   try {
     const completed = await isSetupCompleted();
 
+    // After initial setup, require admin authorization
+    if (completed) {
+      const token = readBearerToken(request.headers.get('authorization'));
+      const session = await getWalletAuthSessionFromRequest(request);
+      const authorized = await isAuthorizedAdmin(token, session?.address ?? null);
+      if (!authorized) {
+        return NextResponse.json(
+          { ok: false, error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+    }
+
     const body = await request.json();
     const { model, services, skipModel } = body as {
       model?: {
@@ -36,8 +51,12 @@ export async function POST(request: NextRequest) {
         authMode?: string;
       };
       services?: {
-        goplus?: { appKey: string; appSecret: string };
-        bscscan?: { apiKey: string };
+        goplus?: { appKey: string; appSecret: string } | null;
+        bscscan?: { apiKey: string } | null;
+        serper?: { apiKey: string } | null;
+        steel?: { apiKey: string; apiUrl?: string } | null;
+        siwe?: { domain?: string; allowedChainIds?: string } | null;
+        rpc?: { url56?: string; url97?: string; url204?: string } | null;
       };
       skipModel?: boolean;
     };
@@ -73,16 +92,63 @@ export async function POST(request: NextRequest) {
     const existingConfig = await getSetupConfig();
     const nextServices = { ...existingConfig.services };
 
-    if (services?.goplus?.appKey && services?.goplus?.appSecret) {
-      nextServices.goplus = {
-        appKey: services.goplus.appKey.trim(),
-        appSecret: services.goplus.appSecret.trim(),
-      };
+    if (services && 'goplus' in services) {
+      if (services.goplus?.appKey && services.goplus?.appSecret) {
+        nextServices.goplus = {
+          appKey: services.goplus.appKey.trim(),
+          appSecret: services.goplus.appSecret.trim(),
+        };
+      } else {
+        delete nextServices.goplus;
+      }
     }
-    if (services?.bscscan?.apiKey) {
-      nextServices.bscscan = {
-        apiKey: services.bscscan.apiKey.trim(),
-      };
+    if (services && 'bscscan' in services) {
+      if (services.bscscan?.apiKey) {
+        nextServices.bscscan = { apiKey: services.bscscan.apiKey.trim() };
+      } else {
+        delete nextServices.bscscan;
+      }
+    }
+    if (services && 'serper' in services) {
+      if (services.serper?.apiKey) {
+        nextServices.serper = { apiKey: services.serper.apiKey.trim() };
+      } else {
+        delete nextServices.serper;
+      }
+    }
+    if (services && 'steel' in services) {
+      if (services.steel?.apiKey) {
+        nextServices.steel = {
+          apiKey: services.steel.apiKey.trim(),
+          apiUrl: services.steel.apiUrl?.trim() || undefined,
+        };
+      } else {
+        delete nextServices.steel;
+      }
+    }
+    if (services && 'siwe' in services) {
+      if (services.siwe?.domain || services.siwe?.allowedChainIds) {
+        nextServices.siwe = {
+          domain: services.siwe.domain?.trim() || undefined,
+          allowedChainIds: services.siwe.allowedChainIds?.trim() || undefined,
+        };
+      } else {
+        delete nextServices.siwe;
+      }
+    }
+    let rpcChanged = false;
+    if (services && 'rpc' in services) {
+      if (services.rpc?.url56 || services.rpc?.url97 || services.rpc?.url204) {
+        nextServices.rpc = {
+          url56: services.rpc.url56?.trim() || undefined,
+          url97: services.rpc.url97?.trim() || undefined,
+          url204: services.rpc.url204?.trim() || undefined,
+        };
+        rpcChanged = true;
+      } else {
+        delete nextServices.rpc;
+        rpcChanged = true;
+      }
     }
 
     await saveSetupConfig({
@@ -91,7 +157,9 @@ export async function POST(request: NextRequest) {
       services: nextServices,
     });
 
-    invalidateSetupCache();
+    // saveSetupConfig() already updates the in-memory cache.
+    // Only invalidate RPC clients when RPC URLs change.
+    if (rpcChanged) invalidateRpcClients();
 
     return NextResponse.json({ ok: true });
   } catch (error) {

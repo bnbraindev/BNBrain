@@ -8,7 +8,7 @@
  * Ref: https://docs.bscscan.com/etherscan-v2
  */
 
-import { getPublicClient } from '@/lib/chain/client';
+import { getPublicClient } from '@/lib/chain/server-client';
 import { parseAbiItem, type Log } from 'viem';
 import { serviceFetch } from './http-client';
 export { ServiceError } from './http-client';
@@ -18,34 +18,24 @@ const ETHERSCAN_V2_BASE = 'https://api.etherscan.io/v2/api';
 
 // ── Configuration ───────────────────────────────────────────
 
-// Cached resolved key (loaded once from DB setup config, then env vars)
-let resolvedApiKey: string | undefined;
-
-function getApiKey(): string {
-  // Return cached key if already resolved (sync path for hot calls)
-  if (resolvedApiKey !== undefined) return resolvedApiKey;
-  return process.env.BSCSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
-}
-
 /**
- * Load API key from DB setup config (called once per process).
- * Falls back to env vars if DB is unavailable.
+ * Resolve API key from DB config (60s cache) with env fallback.
+ * Called on every request — setup-store handles caching internally.
  */
-async function ensureApiKeyResolved(): Promise<void> {
-  if (resolvedApiKey !== undefined) return;
+async function getApiKey(): Promise<string> {
   try {
     const { resolveBscScanApiKey } = await import('@/lib/server/setup-store');
-    resolvedApiKey = await resolveBscScanApiKey();
+    return await resolveBscScanApiKey();
   } catch {
-    resolvedApiKey = process.env.BSCSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
+    return process.env.BSCSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
   }
 }
 
 /** Chain IDs where Etherscan V2 is known to work (free or paid). */
 const V2_SUPPORTED_CHAINS = new Set([1, 56, 97, 204, 42161, 137, 10, 8453]);
 
-function isV2Supported(chainId: number): boolean {
-  return V2_SUPPORTED_CHAINS.has(chainId) && Boolean(getApiKey());
+async function isV2Supported(chainId: number): Promise<boolean> {
+  return V2_SUPPORTED_CHAINS.has(chainId) && Boolean(await getApiKey());
 }
 
 // ── Shared types ────────────────────────────────────────────
@@ -159,12 +149,11 @@ async function etherscanV2<T>(
   chainId: number,
   params: Record<string, string>
 ): Promise<T | null> {
-  await ensureApiKeyResolved();
-  if (!isV2Supported(chainId)) return null;
+  if (!(await isV2Supported(chainId))) return null;
 
   const searchParams = new URLSearchParams({
     chainid: String(chainId),
-    apikey: getApiKey(),
+    apikey: await getApiKey(),
     ...params,
   });
 
@@ -253,7 +242,7 @@ export async function getBalance(
 
   // RPC fallback
   try {
-    const client = getPublicClient(chainId);
+    const client = await getPublicClient(chainId);
     const balance = await client.getBalance({ address: address as `0x${string}` });
     return balance.toString();
   } catch {
@@ -280,7 +269,7 @@ export async function getTokenBalance(
 
   // RPC fallback using balanceOf
   try {
-    const client = getPublicClient(chainId);
+    const client = await getPublicClient(chainId);
     const balance = await client.readContract({
       address: contractAddress as `0x${string}`,
       abi: [{ name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] }],
@@ -349,7 +338,7 @@ export async function getGasOracle(chainId: number = 56): Promise<GasOracle | nu
 
   // Fallback: derive from on-chain gasPrice
   try {
-    const client = getPublicClient(chainId);
+    const client = await getPublicClient(chainId);
     const gasPrice = await client.getGasPrice();
     const gwei = Number(gasPrice) / 1e9;
     const gweiStr = gwei.toFixed(2);
@@ -383,7 +372,7 @@ export async function scanApprovalEvents(
   chainId: number = 56
 ): Promise<ApprovalEvent[]> {
   try {
-    const client = getPublicClient(chainId);
+    const client = await getPublicClient(chainId);
     const currentBlock = await client.getBlockNumber();
     const addr = walletAddress.toLowerCase() as `0x${string}`;
     const fromBlock = currentBlock - 200000n > 0n ? currentBlock - 200000n : 0n;
@@ -446,7 +435,7 @@ async function getRpcTransactionHistory(
   chainId: number
 ): Promise<Transaction[]> {
   try {
-    const client = getPublicClient(chainId);
+    const client = await getPublicClient(chainId);
     const currentBlock = await client.getBlockNumber();
     const addr = address.toLowerCase() as `0x${string}`;
     const fromBlock = currentBlock - 5000n > 0n ? currentBlock - 5000n : 0n;

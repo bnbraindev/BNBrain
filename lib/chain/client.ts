@@ -1,7 +1,8 @@
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, http, type PublicClient } from 'viem';
 import { bsc, bscTestnet, opBNB } from 'viem/chains';
 
-// Read RPC URLs directly from env to avoid circular dependency with config.ts
+// Sync clients from env vars — safe for client-side bundle.
+// For DB-aware async resolution, use lib/chain/server-client.ts instead.
 const bscClient = createPublicClient({
   chain: bsc,
   transport: http(process.env.RPC_URL_56 ?? 'https://bsc-dataseed.binance.org'),
@@ -17,7 +18,7 @@ const opBNBClient = createPublicClient({
   transport: http(process.env.RPC_URL_204 ?? 'https://opbnb-mainnet-rpc.bnbchain.org'),
 });
 
-export function getPublicClient(chainId: number = 56) {
+export function getPublicClient(chainId: number = 56): PublicClient {
   switch (chainId) {
     case 97:
       return bscTestnetClient;
@@ -27,5 +28,3 @@ export function getPublicClient(chainId: number = 56) {
       return bscClient;
   }
 }
-
-export { bscClient, bscTestnetClient, opBNBClient };

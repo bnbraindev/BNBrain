@@ -8,6 +8,8 @@ English | [中文](README.zh-CN.md)
 
 **Hackathon**: Good Vibes Only: OpenClaw Edition (Agent Track)
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/YOUR_TEMPLATE_ID)
+
 ---
 
 ## What is BNBrain?
@@ -107,52 +109,61 @@ All SDK calls include **12-second timeout**, **3x exponential backoff retry**, a
 
 ## Quick Start
 
-### Prerequisites
+### Option 1: Deploy to Railway (Recommended)
 
-- Node.js 22+
-- PostgreSQL 16+
-- Anthropic API Key (or compatible proxy)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/YOUR_TEMPLATE_ID)
 
-### Setup
+1. Click the button above — Railway provisions the app + PostgreSQL automatically
+2. Wait ~3 minutes for the build to complete
+3. Open your app URL — the **Setup Wizard** appears on first visit
+4. Enter your Anthropic API key and optional service keys
+5. Done! Start chatting with your AI agent
+
+> No environment variables needed at deploy time. The built-in Setup Wizard handles all configuration through a visual interface.
+
+### Option 2: Docker (Self-Hosted)
+
+```bash
+git clone https://github.com/bnbraindev/BNBrain.git
+cd bnb-ai
+cp .env.example .env
+# Edit .env — only DATABASE_URL is required, other keys can be configured via Setup Wizard
+docker compose up -d
+# Open http://localhost:3000
+```
+
+### Option 3: Local Development
+
+**Prerequisites**: Node.js 22+, PostgreSQL 16+
 
 ```bash
 git clone https://github.com/bnbraindev/BNBrain.git
 cd bnb-ai
 npm install
 cp .env.example .env.local
-# Edit .env.local with your keys
-```
-
-### Environment Variables
-
-```env
-# Required
-ANTHROPIC_API_KEY=sk-...
-ANTHROPIC_BASE_URL=https://api.anthropic.com  # or your proxy
-DATABASE_URL=postgresql://user:pass@localhost:5432/bnbshield
-
-# Optional (improves functionality)
-ETHERSCAN_API_KEY=...          # BscScan/Etherscan V2
-GOPLUS_APP_KEY=...             # GoPlus Security (higher rate limits)
-GOPLUS_APP_SECRET=...
-NEXT_PUBLIC_WC_PROJECT_ID=...  # WalletConnect
-ADMIN_DASHBOARD_TOKEN=...      # Admin panel access
-SIWE_ALLOWED_CHAIN_IDS=56     # Lock to BSC mainnet
-```
-
-### Run
-
-```bash
+# Edit .env.local with your DATABASE_URL
 npm run dev
 # Open http://localhost:3099
 ```
 
-### Docker
+### Environment Variables
 
-```bash
-docker compose up -d
-# App runs on port 3000
-```
+Only `DATABASE_URL` is required. All other settings can be configured through the **Setup Wizard** and **Admin Dashboard** after deployment:
+
+| Variable | Required | UI Configurable | Description |
+|----------|----------|----------------|-------------|
+| `DATABASE_URL` | Yes | No | PostgreSQL connection string |
+| `ANTHROPIC_API_KEY` | No | Setup Wizard | AI provider API key |
+| `ANTHROPIC_BASE_URL` | No | Setup Wizard | Custom API endpoint |
+| `ETHERSCAN_API_KEY` | No | Admin Dashboard | BscScan/Etherscan V2 |
+| `GOPLUS_APP_KEY/SECRET` | No | Admin Dashboard | GoPlus Security |
+| `SERPER_API_KEY` | No | Admin Dashboard | Google Search (Serper.dev) |
+| `STEEL_API_KEY` | No | Admin Dashboard | Web scraper (Steel.dev) |
+| `SIWE_DOMAIN` | No | Admin Dashboard | Auth domain pinning |
+| `SIWE_ALLOWED_CHAIN_IDS` | No | Admin Dashboard | Restrict auth chains |
+| `RPC_URL_56/97/204` | No | Admin Dashboard | Custom RPC endpoints |
+| `NEXT_PUBLIC_WC_PROJECT_ID` | No | No (build-time) | WalletConnect project ID |
+| `ADMIN_DASHBOARD_TOKEN` | No | No (env-only) | Admin panel access token |
 
 ---
 
@@ -183,7 +194,7 @@ npx tsx -r tsconfig-paths/register tests/e2e/prompt-intelligence.test.ts
 | Blockchain | wagmi, viem, RainbowKit |
 | Database | PostgreSQL 17, pg driver |
 | Auth | SIWE (Sign-In with Ethereum) |
-| Deployment | Docker, Cloudflare Tunnel |
+| Deployment | Docker, Railway, Cloudflare Tunnel |
 
 ---
 

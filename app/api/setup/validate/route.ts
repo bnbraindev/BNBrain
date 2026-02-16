@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isSetupCompleted } from '@/lib/server/setup-store';
+import { isAuthorizedAdmin, readBearerToken } from '@/lib/server/admin-auth';
+import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
 
 const VALIDATION_TIMEOUT_MS = 12_000;
 
@@ -12,10 +14,18 @@ const VALIDATION_TIMEOUT_MS = 12_000;
 export async function POST(request: NextRequest) {
   try {
     const completed = await isSetupCompleted();
-    // Allow validation even after setup (for admin settings)
-    // but block if it's clearly an abuse scenario
+
+    // After initial setup, require admin authorization
     if (completed) {
-      // Still allow — admin might re-test keys
+      const token = readBearerToken(request.headers.get('authorization'));
+      const session = await getWalletAuthSessionFromRequest(request);
+      const authorized = await isAuthorizedAdmin(token, session?.address ?? null);
+      if (!authorized) {
+        return NextResponse.json(
+          { valid: false, message: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
     }
 
     const body = await request.json();
@@ -38,6 +48,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(await validateGoPlus(config));
       case 'bscscan':
         return NextResponse.json(await validateBscScan(config));
+      case 'serper':
+        return NextResponse.json(await validateSerper(config));
+      case 'steel':
+        return NextResponse.json(await validateSteel(config));
+      case 'siwe':
+        return NextResponse.json(validateSiwe(config));
+      case 'rpc':
+        return NextResponse.json(await validateRpc(config));
       default:
         return NextResponse.json(
           { valid: false, message: `Unknown service: ${service}` },
@@ -162,37 +180,24 @@ async function validateGoPlus(config: Record<string, string>): Promise<{
   if (!appSecret) return { valid: false, message: 'App Secret is required' };
 
   const start = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
 
   try {
-    // Use GoPlus access token endpoint to validate credentials
-    const response = await fetch(
-      'https://api.gopluslabs.io/api/v1/token_security/56?contract_addresses=0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82',
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-      }
-    );
-
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const goPlusSdk = require('@goplus/sdk-node').GoPlus;
+    goPlusSdk.config(appKey, appSecret, 12);
+    const result = await goPlusSdk.getAccessToken();
     const latencyMs = Date.now() - start;
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.code === 1 && data.result) {
-        return {
-          valid: true,
-          message: `GoPlus API accessible (${latencyMs}ms)`,
-          latencyMs,
-        };
-      }
+    if (result.code === 1 && result.result?.access_token) {
+      return {
+        valid: true,
+        message: `GoPlus credentials valid (${latencyMs}ms)`,
+        latencyMs,
+      };
     }
-
     return {
       valid: false,
-      message: `GoPlus API check failed (${response.status})`,
+      message: `Invalid credentials: ${result.message || 'authentication failed'}`,
       latencyMs,
     };
   } catch (error) {
@@ -206,7 +211,10 @@ async function validateGoPlus(config: Record<string, string>): Promise<{
       latencyMs,
     };
   } finally {
-    clearTimeout(timeout);
+    // Testing mutates the global SDK singleton — force goplus.ts to
+    // re-configure from DB credentials on the next real API call.
+    const { invalidateGoPlusAuth } = await import('@/lib/services/goplus');
+    invalidateGoPlusAuth();
   }
 }
 
@@ -265,4 +273,203 @@ async function validateBscScan(config: Record<string, string>): Promise<{
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function validateSerper(config: Record<string, string>): Promise<{
+  valid: boolean;
+  message: string;
+  latencyMs?: number;
+}> {
+  const { apiKey } = config;
+  if (!apiKey) return { valid: false, message: 'API key is required' };
+
+  const start = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
+
+  try {
+    const response = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey,
+      },
+      body: JSON.stringify({ q: 'test', num: 1 }),
+      signal: controller.signal,
+    });
+
+    const latencyMs = Date.now() - start;
+
+    if (response.ok) {
+      return {
+        valid: true,
+        message: `Serper API working (${latencyMs}ms)`,
+        latencyMs,
+      };
+    }
+
+    const text = await response.text().catch(() => '');
+    return {
+      valid: false,
+      message: text
+        ? `HTTP ${response.status}: ${text.slice(0, 150)}`
+        : `HTTP ${response.status}`,
+      latencyMs,
+    };
+  } catch (error) {
+    const latencyMs = Date.now() - start;
+    return {
+      valid: false,
+      message:
+        error instanceof Error
+          ? `Serper connection failed: ${error.message}`
+          : 'Serper connection failed',
+      latencyMs,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function validateSteel(config: Record<string, string>): Promise<{
+  valid: boolean;
+  message: string;
+  latencyMs?: number;
+}> {
+  const { apiKey, apiUrl } = config;
+  if (!apiKey) return { valid: false, message: 'API key is required' };
+
+  const base = apiUrl?.trim() || 'https://api.steel.dev';
+  const start = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${base}/v1/scrape`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Steel-Api-Key': apiKey,
+      },
+      body: JSON.stringify({ url: 'https://example.com', format: ['markdown'] }),
+      signal: controller.signal,
+    });
+
+    const latencyMs = Date.now() - start;
+
+    if (response.ok) {
+      return {
+        valid: true,
+        message: `Steel API working (${latencyMs}ms)`,
+        latencyMs,
+      };
+    }
+
+    const text = await response.text().catch(() => '');
+    return {
+      valid: false,
+      message: text
+        ? `HTTP ${response.status}: ${text.slice(0, 150)}`
+        : `HTTP ${response.status}`,
+      latencyMs,
+    };
+  } catch (error) {
+    const latencyMs = Date.now() - start;
+    return {
+      valid: false,
+      message:
+        error instanceof Error
+          ? `Steel connection failed: ${error.message}`
+          : 'Steel connection failed',
+      latencyMs,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function validateSiwe(config: Record<string, string>): {
+  valid: boolean;
+  message: string;
+} {
+  const { domain, allowedChainIds } = config;
+
+  if (domain) {
+    if (/\s/.test(domain) || domain.includes('/')) {
+      return { valid: false, message: 'Domain must not contain spaces or slashes' };
+    }
+  }
+
+  if (allowedChainIds) {
+    const normalized = allowedChainIds.trim().toLowerCase();
+    if (normalized !== 'all' && normalized !== '*') {
+      const parts = allowedChainIds.split(',').map((s) => s.trim());
+      for (const part of parts) {
+        const n = Number(part);
+        if (!Number.isInteger(n) || n <= 0) {
+          return { valid: false, message: `Invalid chain ID: "${part}"` };
+        }
+      }
+    }
+  }
+
+  return { valid: true, message: 'SIWE configuration is valid' };
+}
+
+async function validateRpc(config: Record<string, string>): Promise<{
+  valid: boolean;
+  message: string;
+  latencyMs?: number;
+}> {
+  const entries = Object.entries(config).filter(([, v]) => v?.trim());
+  if (entries.length === 0) {
+    return { valid: false, message: 'At least one RPC URL is required' };
+  }
+
+  const start = Date.now();
+  const results: string[] = [];
+
+  for (const [key, url] of entries) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        results.push(`${key}: HTTP ${response.status}`);
+        continue;
+      }
+      const data = await response.json();
+      if (!data.result) {
+        results.push(`${key}: no result`);
+        continue;
+      }
+    } catch (error) {
+      results.push(
+        `${key}: ${error instanceof Error ? error.message : 'failed'}`
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  const latencyMs = Date.now() - start;
+
+  if (results.length > 0) {
+    return {
+      valid: false,
+      message: `RPC check failed: ${results.join('; ')}`,
+      latencyMs,
+    };
+  }
+
+  return {
+    valid: true,
+    message: `All RPC endpoints working (${latencyMs}ms)`,
+    latencyMs,
+  };
 }

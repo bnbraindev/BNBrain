@@ -12,6 +12,7 @@ import {
 } from '@/lib/server/siwe-auth';
 import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 import { writeSecurityAuditLog } from '@/lib/server/security-audit';
+import { resolveRequestOrigin, isAllowedSiweChainId } from '@/lib/server/siwe-config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,54 +25,6 @@ const VerifyBodySchema = z.object({
   singleDevice: z.boolean().optional(),
   purpose: z.enum(['user', 'admin']).optional(),
 });
-
-function resolveConfiguredSiweChainIds(): Set<number> | null {
-  const raw = process.env.SIWE_ALLOWED_CHAIN_IDS?.trim();
-  if (!raw) return null;
-  const normalized = raw.toLowerCase();
-  if (normalized === 'all' || normalized === '*') return null;
-  const parsed = raw
-    .split(',')
-    .map((item) => Number(item.trim()))
-    .filter((item) => Number.isInteger(item) && item > 0);
-  if (parsed.length === 0) return null;
-  return new Set(parsed);
-}
-
-function isAllowedSiweChainId(chainId: number): boolean {
-  if (!Number.isInteger(chainId) || chainId <= 0) return false;
-  const configured = resolveConfiguredSiweChainIds();
-  if (!configured) return true;
-  return configured.has(chainId);
-}
-
-function resolveRequestOrigin(req: Request): { domain: string; uri: string } | null {
-  // Prefer server-pinned domain (prevents Origin header spoofing)
-  const pinnedDomain = process.env.SIWE_DOMAIN;
-  if (pinnedDomain) {
-    const proto = pinnedDomain.includes('localhost') ? 'http' : 'https';
-    return { domain: pinnedDomain, uri: `${proto}://${pinnedDomain}` };
-  }
-  const url = new URL(req.url);
-  const originHeader = req.headers.get('origin');
-  // Behind reverse proxy (Cloudflare Tunnel, Nginx), trust the Origin header
-  // as the authoritative source of the public-facing domain.
-  if (originHeader) {
-    try {
-      const parsedOrigin = new URL(originHeader);
-      return { domain: parsedOrigin.host, uri: parsedOrigin.origin };
-    } catch {
-      return null;
-    }
-  }
-  // Fallback to Host header for non-browser clients
-  const hostHeader = req.headers.get('host') ?? req.headers.get('x-forwarded-host');
-  if (hostHeader) {
-    const proto = req.headers.get('x-forwarded-proto') ?? 'https';
-    return { domain: hostHeader, uri: `${proto}://${hostHeader}` };
-  }
-  return { domain: url.host, uri: url.origin };
-}
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -90,7 +43,7 @@ export async function POST(req: Request) {
   const requestIp = getRequestIpAddress(req);
   const normalizedAddress = normalizeWalletAddress(parsed.data.address) ?? parsed.data.address;
   const authPurpose = parsed.data.purpose ?? 'user';
-  const requestOrigin = resolveRequestOrigin(req);
+  const requestOrigin = await resolveRequestOrigin(req);
   if (!requestOrigin) {
     await writeSecurityAuditLog({
       eventType: 'siwe_verify',
@@ -104,7 +57,7 @@ export async function POST(req: Request) {
     });
     return Response.json({ error: 'Invalid request origin' }, { status: 403 });
   }
-  if (!isAllowedSiweChainId(parsed.data.chainId)) {
+  if (!(await isAllowedSiweChainId(parsed.data.chainId))) {
     await writeSecurityAuditLog({
       eventType: 'siwe_verify',
       result: 'denied',
