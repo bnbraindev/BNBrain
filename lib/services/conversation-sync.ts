@@ -231,7 +231,8 @@ export async function forkSharedConversation(
 
 export async function generateConversationTitle(
   messages: TitleGenerationMessage[],
-  modelId?: string | null
+  modelId?: string | null,
+  owner?: OwnerIdentity | null
 ): Promise<string> {
   const compactMessages = messages
     .map((message) => ({
@@ -243,9 +244,15 @@ export async function generateConversationTitle(
     throw new Error('Cannot generate title from empty messages');
   }
 
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (owner) {
+    headers['x-bnb-owner-type'] = owner.ownerType;
+    headers['x-bnb-owner-id'] = owner.ownerId;
+  }
+
   const res = await fetchWithRetry('/api/chat/title', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       messages: compactMessages,
       modelId: modelId?.trim() || undefined,

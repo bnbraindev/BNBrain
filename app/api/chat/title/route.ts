@@ -57,6 +57,15 @@ function buildTranscript(messages: ModelMessage[]): string {
 }
 
 export async function POST(req: Request) {
+  const ownerType = req.headers.get('x-bnb-owner-type');
+  const ownerId = req.headers.get('x-bnb-owner-id');
+  if (!ownerType || !ownerId) {
+    return apiErrorResponse(
+      { code: 'UNAUTHORIZED', message: 'Missing owner identity headers', retryable: false },
+      401
+    );
+  }
+
   const ip = getRequestIpAddress(req);
   const rl = await checkRateLimit({ key: `title:ip:${ip}`, limit: 10, windowMs: 60_000 });
   if (!rl.allowed) {

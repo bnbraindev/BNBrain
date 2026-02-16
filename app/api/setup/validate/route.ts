@@ -5,6 +5,32 @@ import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
 
 const VALIDATION_TIMEOUT_MS = 12_000;
 
+/** Block SSRF vectors: cloud metadata, link-local, and non-http(s) schemes. */
+function validateUrlSafety(raw: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return 'Invalid URL';
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return 'Only http and https URLs are allowed';
+  }
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+  const blocked = [
+    '169.254.169.254',  // AWS/GCP metadata
+    'metadata.google.internal',
+    '100.100.100.200',  // Alibaba Cloud metadata
+  ];
+  if (blocked.includes(hostname)) {
+    return 'URL points to a blocked metadata endpoint';
+  }
+  if (hostname.startsWith('fd') || hostname.startsWith('fe80')) {
+    return 'Link-local and unique-local IPv6 addresses are not allowed';
+  }
+  return null;
+}
+
 /**
  * POST /api/setup/validate
  * Validate a service configuration before saving.
@@ -83,6 +109,9 @@ async function validateAnthropic(config: Record<string, string>): Promise<{
   if (!apiKey) return { valid: false, message: 'API key is required' };
   if (!baseUrl) return { valid: false, message: 'Base URL is required' };
   if (!model) return { valid: false, message: 'Model ID is required' };
+
+  const urlError = validateUrlSafety(baseUrl);
+  if (urlError) return { valid: false, message: `Base URL: ${urlError}` };
 
   const start = Date.now();
   const controller = new AbortController();
@@ -340,6 +369,10 @@ async function validateSteel(config: Record<string, string>): Promise<{
   if (!apiKey) return { valid: false, message: 'API key is required' };
 
   const base = apiUrl?.trim() || 'https://api.steel.dev';
+  if (apiUrl?.trim()) {
+    const urlError = validateUrlSafety(base);
+    if (urlError) return { valid: false, message: `Steel API URL: ${urlError}` };
+  }
   const start = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
@@ -430,6 +463,11 @@ async function validateRpc(config: Record<string, string>): Promise<{
   const results: string[] = [];
 
   for (const [key, url] of entries) {
+    const urlError = validateUrlSafety(url);
+    if (urlError) {
+      results.push(`${key}: ${urlError}`);
+      continue;
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8_000);
     try {

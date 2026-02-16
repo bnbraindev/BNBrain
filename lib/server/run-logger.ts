@@ -196,21 +196,13 @@ export class RunLogger {
         const startTime = this.toolStartTimes.get(chunk.toolCallId);
         const toolName = this.toolInputBuffers.get(chunk.toolCallId)?.toolName
           ?? this.resolveToolName(chunk.toolCallId);
-        this.write('data', {
-          level: 'error',
-          event: 'tool_result',
-          toolCallId: chunk.toolCallId,
-          toolName,
-          output: chunk.errorText,
-          durationMs: startTime ? Date.now() - startTime : undefined,
-          isError: true,
-        });
         this.writeBoth({
           level: 'error',
           event: 'tool_result',
           toolCallId: chunk.toolCallId,
           toolName,
           output: chunk.errorText,
+          durationMs: startTime ? Date.now() - startTime : undefined,
           isError: true,
         });
         this.toolStartTimes.delete(chunk.toolCallId);

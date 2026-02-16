@@ -827,8 +827,9 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
       titleGenerationInFlightRef.current.add(conversationId);
       void (async () => {
         try {
+          const currentOwner = ownerRef.current;
           const generatedTitle = (
-            await generateConversationTitle(requestMessages, selectedModelId)
+            await generateConversationTitle(requestMessages, selectedModelId, currentOwner)
           ).trim();
           if (!generatedTitle || generatedTitle === 'New conversation') return;
           const latestConversation = useChatStore
@@ -927,6 +928,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     const sent = sendTextWithConversationId(id, text);
     if (!sent) return false;
     scheduleTitleGeneration(id, text);
+    return true;
   }, [
     isReadingSharedConversation,
     shareToken,

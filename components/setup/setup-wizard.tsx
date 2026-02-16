@@ -417,8 +417,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     if (v.status === 'idle') return null;
     if (v.status === 'testing')
       return (
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" />
+        <span className="flex items-center gap-1.5 text-xs text-foreground">
+          <Loader2 className="size-3.5 animate-spin text-primary" />
           {v.message}
         </span>
       );
@@ -448,7 +448,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   // ── UI ──────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-start overflow-y-auto bg-background px-4 py-8 sm:py-12">
+    <div className="flex h-[100dvh] flex-col items-center justify-start overflow-y-auto bg-background px-4 py-8 sm:py-12">
       {/* Header */}
       <div className="mb-8 flex flex-col items-center gap-3 text-center animate-hero-entrance">
         <div className="relative flex size-16 items-center justify-center rounded-2xl bg-primary/10 animate-shield-glow">
@@ -513,6 +513,12 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                 {t.aiDesc}
               </p>
 
+              {!status && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-5 animate-spin text-primary" />
+                </div>
+              )}
+
               {status?.hasModels && (
                 <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
                   <CheckCircle2 className="size-4 shrink-0" />
@@ -522,7 +528,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                 </div>
               )}
 
-              {!status?.hasModels && (
+              {status && !status.hasModels && (
                 <div className="space-y-4">
                   {/* Display Name */}
                   <div>
@@ -792,8 +798,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                     <Button
                       onClick={validateGoPlus}
                       disabled={
-                        (!goplusKey || !goplusSecret) &&
-                        !status?.envPreloaded.hasGoplusKey ||
+                        ((!goplusKey || !goplusSecret) &&
+                          !status?.envPreloaded.hasGoplusKey) ||
                         goplusValidation.status === 'testing'
                       }
                       variant="outline"
@@ -852,7 +858,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                     <Button
                       onClick={validateBscScan}
                       disabled={
-                        !bscscanKey && !status?.envPreloaded.hasBscscanKey ||
+                        (!bscscanKey && !status?.envPreloaded.hasBscscanKey) ||
                         bscscanValidation.status === 'testing'
                       }
                       variant="outline"
@@ -911,7 +917,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                     <Button
                       onClick={validateSerper}
                       disabled={
-                        !serperKey && !status?.envPreloaded.hasSerperKey ||
+                        (!serperKey && !status?.envPreloaded.hasSerperKey) ||
                         serperValidation.status === 'testing'
                       }
                       variant="outline"
@@ -980,7 +986,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                     <Button
                       onClick={validateSteel}
                       disabled={
-                        !steelKey && !status?.envPreloaded.hasSteelKey ||
+                        (!steelKey && !status?.envPreloaded.hasSteelKey) ||
                         steelValidation.status === 'testing'
                       }
                       variant="outline"

@@ -9,6 +9,7 @@ import { createChatModel } from '@/lib/server/chat-model-store';
 import type { ChatModelProtocol, ChatModelAuthMode } from '@/lib/server/chat-model-store';
 import { isAuthorizedAdmin, readBearerToken } from '@/lib/server/admin-auth';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
+import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 
 /**
  * POST /api/setup/save
@@ -26,6 +27,18 @@ import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
 export async function POST(request: NextRequest) {
   try {
     const completed = await isSetupCompleted();
+
+    // Rate-limit during initial setup to mitigate race-condition abuse
+    if (!completed) {
+      const ip = getRequestIpAddress(request);
+      const rl = await checkRateLimit({ key: `setup-save:ip:${ip}`, limit: 5, windowMs: 60_000 });
+      if (!rl.allowed) {
+        return NextResponse.json(
+          { ok: false, error: 'Too many setup attempts. Please retry shortly.' },
+          { status: 429 }
+        );
+      }
+    }
 
     // After initial setup, require admin authorization
     if (completed) {
