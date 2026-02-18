@@ -45,6 +45,14 @@ import { resolveRuntimeChatModel, createRuntimeLanguageModel } from '@/lib/serve
 import { getChatRunContext } from '@/lib/server/chat-runtime';
 import { setAnalysisProgress, type StepProgress } from '@/lib/server/analysis-progress';
 import {
+  createProject as createProjectStore,
+  getProjectFile,
+  upsertProjectFile,
+  listProjectFiles as listProjectFilesStore,
+  type OwnerIdentity,
+} from '@/lib/server/project-store';
+import { updateConversationProject } from '@/lib/server/conversation-store';
+import {
   extractSocialLinksFromUrls,
   extractSocialLinksFromDexScreener,
   mergeSocialLinks,
@@ -2834,6 +2842,166 @@ export const aiTools = {
       }
       return { error: `Deep analysis failed: ${msg}` };
      }
+    },
+  }),
+
+  // ── Project AI Tools ──
+
+  createProject: tool({
+    description: 'Create a new project workspace for the user. Projects provide persistent cross-conversation memory, file storage, and a management page. Use when user wants to deploy a contract or start a multi-step workflow that benefits from persistent context.',
+    inputSchema: z.object({
+      name: z.string().min(1).max(120).describe('Project name (e.g. "TestCoin", "My NFT")'),
+      description: z.string().optional().describe('Short project description'),
+      projectType: z.enum(['token', 'nft', 'defi', 'custom']).optional().describe('Project type for templates. Defaults to custom.'),
+      chainId: z.number().optional().describe('Primary chain ID (56=BSC, 204=opBNB)'),
+    }),
+    execute: async ({ name, description, projectType, chainId }) => {
+      try {
+        const ctx = getChatRunContext();
+        if (!ctx) {
+          return { error: 'Cannot create project: no chat context available' };
+        }
+
+        const chatId = ctx.chatId;
+        if (!chatId) {
+          return { error: 'Cannot create project: no conversation ID available' };
+        }
+
+        if (!ctx.owner) {
+          return { error: 'Cannot create project: owner identity not available. Please sign in or use a valid guest session.' };
+        }
+
+        const owner: OwnerIdentity = ctx.owner;
+
+        const project = await createProjectStore({
+          owner,
+          name,
+          description,
+          projectType: projectType ?? 'custom',
+          primaryChainId: chainId,
+        });
+
+        // D1: Auto-associate current conversation to the new project
+        await updateConversationProject(owner, chatId, project.id);
+
+        // Update ChatRunContext so subsequent tool calls are project-aware
+        // Note: AsyncLocalStorage is immutable per-run, but tools read projectId from context
+        // We mutate the stored object since it's the same reference
+        const store = getChatRunContext();
+        if (store) {
+          (store as { projectId?: string }).projectId = project.id;
+        }
+
+        return {
+          type: 'project_created',
+          projectId: project.id,
+          shortId: project.shortId,
+          name: project.name,
+          managementUrl: `/x/${project.shortId}`,
+        };
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : 'Failed to create project' };
+      }
+    },
+  }),
+
+  updateProjectFile: tool({
+    description: 'Write or update a file in the current project. Use after deploying contracts (save source code, ABI), or to update memory.md with new state. Only available in project mode.',
+    inputSchema: z.object({
+      path: z.string().min(1).max(500).describe('File path within the project (e.g. "contracts/Token.sol", "memory.md")'),
+      content: z.string().max(200_000).describe('File content to write'),
+      contentType: z.string().optional().describe('MIME type (auto-detected from extension if omitted)'),
+      description: z.string().optional().describe('Description of the update (logged for traceability)'),
+    }),
+    execute: async ({ path, content, contentType, description: updateDesc }) => {
+      try {
+        const ctx = getChatRunContext();
+        const projectId = ctx?.projectId;
+        if (!projectId) {
+          return { error: 'This tool is only available in project mode. Create a project first with createProject.' };
+        }
+
+        // D3: AI tool calls always set updatedBy to 'ai'
+        const file = await upsertProjectFile(projectId, {
+          path,
+          content,
+          contentType,
+          updatedBy: 'ai',
+        });
+
+        return {
+          type: 'project_file_update',
+          path: file.path,
+          version: file.version,
+          sizeBytes: file.sizeBytes,
+          description: updateDesc || `Updated ${path}`,
+        };
+      } catch (error) {
+        if (error instanceof Error && error.name === 'ProjectFileConflictError') {
+          return { error: `Version conflict: ${error.message}. Retry with the current version.` };
+        }
+        return { error: error instanceof Error ? error.message : 'Failed to update project file' };
+      }
+    },
+  }),
+
+  readProjectFile: tool({
+    description: 'Read a file from the current project. Use to check existing source code, ABI, or other project files. Only available in project mode.',
+    inputSchema: z.object({
+      path: z.string().min(1).max(500).describe('File path within the project (e.g. "contracts/Token.sol", "artifacts/abi.json")'),
+    }),
+    execute: async ({ path }) => {
+      try {
+        const ctx = getChatRunContext();
+        const projectId = ctx?.projectId;
+        if (!projectId) {
+          return { error: 'This tool is only available in project mode. Create a project first with createProject.' };
+        }
+
+        const file = await getProjectFile(projectId, path);
+        if (!file) {
+          return { error: `File not found: "${path}". Use listProjectFiles to see available files.` };
+        }
+
+        return {
+          type: 'project_file_content',
+          path: file.path,
+          content: file.content,
+          contentType: file.contentType,
+          version: file.version,
+        };
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : 'Failed to read project file' };
+      }
+    },
+  }),
+
+  listProjectFiles: tool({
+    description: 'List all files in the current project with metadata. Only available in project mode.',
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const ctx = getChatRunContext();
+        const projectId = ctx?.projectId;
+        if (!projectId) {
+          return { error: 'This tool is only available in project mode. Create a project first with createProject.' };
+        }
+
+        const files = await listProjectFilesStore(projectId);
+
+        return {
+          type: 'project_file_list',
+          files: files.map(f => ({
+            path: f.path,
+            contentType: f.contentType,
+            sizeBytes: f.sizeBytes,
+            updatedBy: f.updatedBy,
+            updatedAt: f.updatedAt,
+          })),
+        };
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : 'Failed to list project files' };
+      }
     },
   }),
 };
