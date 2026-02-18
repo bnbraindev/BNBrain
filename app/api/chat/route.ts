@@ -94,7 +94,7 @@ export async function POST(req: Request) {
     const _sc = parsed.data.silentContext as Record<string, unknown>;
     console.log(`[chat route] silentContext received: type=${_sc.type}, mode=${_sc.mode ?? 'N/A'}, chatId=${parsed.data.id ?? 'N/A'}, hasExtraContext=${Boolean(_sc.extraContext)}`);
     const ctx = parsed.data.silentContext as Record<string, unknown>;
-    userContext = { ...(userContext ?? {}), silentContext: ctx };
+    userContext = { ...(userContext ?? { authState: 'guest' as const }), silentContext: ctx };
     requestMessages = requestMessages
       .filter((msg) => (msg as { role?: string }).role !== 'system')
       .map((msg) => {

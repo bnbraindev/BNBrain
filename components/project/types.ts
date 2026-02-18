@@ -7,6 +7,7 @@ export type ProjectType = 'token' | 'nft' | 'defi' | 'custom';
 export type ProjectStatus = 'draft' | 'active' | 'archived';
 export type FileUpdatedBy = 'ai' | 'user' | 'system';
 export type DetailTab = 'overview' | 'memory' | 'files' | 'chats';
+export type SidebarTab = 'projects' | 'chats';
 
 /** Controls what the main content area renders */
 export type MainView =
