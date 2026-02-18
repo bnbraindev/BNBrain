@@ -681,6 +681,29 @@ export const aiTools = {
         }
         const bytecodeBytes = (compiled.bytecode.length - 2) / 2;
 
+        // Save source code and ABI to project files if in project mode
+        const deployCtx = getChatRunContext();
+        if (deployCtx?.projectId) {
+          try {
+            const solPath = `contracts/${compiled.contractName}.sol`;
+            const abiPath = `contracts/${compiled.contractName}.abi.json`;
+            await upsertProjectFile(deployCtx.projectId, {
+              path: solPath,
+              content: sourceCode,
+              updatedBy: 'ai',
+            });
+            await upsertProjectFile(deployCtx.projectId, {
+              path: abiPath,
+              content: JSON.stringify(compiled.abi, null, 2),
+              contentType: 'application/json',
+              updatedBy: 'ai',
+            });
+            console.log(`[compileContractDeploy] Saved ${solPath} + ${abiPath} to project ${deployCtx.projectId}`);
+          } catch (fileErr) {
+            console.warn('[compileContractDeploy] Failed to save project files:', fileErr);
+          }
+        }
+
         return {
           type: 'tx_plan' as const,
           mode: 'contract_deploy' as const,
@@ -754,6 +777,29 @@ export const aiTools = {
           bytecode: compiled.bytecode,
           args: [name, finalSymbol, decimals, parsedSupply] as const,
         });
+
+        // Save source code and ABI to project files if in project mode
+        const tokenCtx = getChatRunContext();
+        if (tokenCtx?.projectId) {
+          try {
+            const solPath = `contracts/${compiled.contractName}.sol`;
+            const abiPath = `contracts/${compiled.contractName}.abi.json`;
+            await upsertProjectFile(tokenCtx.projectId, {
+              path: solPath,
+              content: sourceCode,
+              updatedBy: 'ai',
+            });
+            await upsertProjectFile(tokenCtx.projectId, {
+              path: abiPath,
+              content: JSON.stringify(compiled.abi, null, 2),
+              contentType: 'application/json',
+              updatedBy: 'ai',
+            });
+            console.log(`[deployToken] Saved ${solPath} + ${abiPath} to project ${tokenCtx.projectId}`);
+          } catch (fileErr) {
+            console.warn('[deployToken] Failed to save project files:', fileErr);
+          }
+        }
 
         return {
           type: 'tx_plan' as const,

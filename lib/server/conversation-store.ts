@@ -559,6 +559,20 @@ export async function updateConversationProject(
   return (rowCount ?? 0) > 0;
 }
 
+export async function getConversationProjectId(
+  conversationId: string
+): Promise<string | null> {
+  await ensureDatabaseSchema();
+  const pool = getDbPool();
+  const { rows } = await pool.query(
+    'SELECT project_id FROM conversations WHERE id = $1 LIMIT 1',
+    [conversationId]
+  );
+  if (rows.length === 0) return null;
+  const projectId = (rows[0] as Record<string, unknown>).project_id;
+  return typeof projectId === 'string' && projectId ? projectId : null;
+}
+
 export async function clearConversationShareToken(
   ownerInput: ConversationOwner,
   conversationId: string
