@@ -2,10 +2,12 @@
 
 import type { UIMessage } from 'ai';
 import { getToolName, isTextUIPart, isToolUIPart } from 'ai';
-import { Shield, User, Copy, Check, ThumbsUp, ThumbsDown, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { Shield, User, Copy, Check, ThumbsUp, ThumbsDown, CheckCircle, AlertTriangle, Loader2, Wallet } from 'lucide-react';
 import { ToolInvocation } from './tool-invocation';
-import { getToolLabel, getToolSummary, isHighRisk } from './tool-invocation';
+import { getToolLabel, getToolSummary, isHighRisk, TX_TOOLS } from './tool-invocation';
+import { useTxStatusStore } from '@/lib/stores/tx-status-store';
 import { Markdown } from './markdown';
+import type { ReactNode } from 'react';
 import { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import { useI18n } from '@/lib/i18n/context';
 import { useToast } from '@/components/ui/toast';
@@ -50,6 +52,102 @@ function formatRelativeTime(date: Date | string | number): string {
   return `${days}d ago`;
 }
 
+
+// ── Inline tool badge with tx-status awareness ──────────────
+
+interface ToolBadgeProps {
+  toolCallId: string;
+  toolName: string;
+  isDone: boolean;
+  isErr: boolean;
+  output: Record<string, unknown> | undefined;
+  conversationId?: string;
+  locale: string;
+  onClick: () => void;
+}
+
+const TX_SUMMARY_ZH: Record<string, string> = {
+  idle: '待签名',
+  confirming: '签名中…',
+  pending: '确认中…',
+  success: '已完成',
+  cancelled: '已取消',
+  error: '失败',
+};
+const TX_SUMMARY_EN: Record<string, string> = {
+  idle: 'Awaiting signature',
+  confirming: 'Signing…',
+  pending: 'Confirming…',
+  success: 'Done',
+  cancelled: 'Cancelled',
+  error: 'Failed',
+};
+
+function ToolBadge({ toolCallId, toolName, isDone, isErr, output, conversationId, locale, onClick }: ToolBadgeProps) {
+  const isTx = TX_TOOLS.has(toolName);
+  const txKey = isTx && conversationId ? `${conversationId}:${toolCallId}` : '';
+  const txStatus = useTxStatusStore((s) => (txKey ? s.statuses[txKey] : undefined));
+  const highRisk = output ? isHighRisk(output) : false;
+
+  // Derive summary text
+  let summary: string | null = null;
+  if (isDone && output) {
+    if (isTx && txStatus) {
+      const labels = locale === 'zh' ? TX_SUMMARY_ZH : TX_SUMMARY_EN;
+      summary = labels[txStatus] ?? null;
+    } else {
+      summary = getToolSummary(toolName, output, locale);
+    }
+  }
+
+  // Derive icon and styling
+  const txDone = txStatus === 'success';
+  const txActive = txStatus === 'confirming' || txStatus === 'pending';
+  const txFailed = txStatus === 'error' || txStatus === 'cancelled';
+
+  const borderClass = isErr
+    ? 'border-red-500/30 bg-red-500/10 text-red-400'
+    : highRisk
+      ? 'border-red-500/30 bg-red-500/5 text-red-400 hover:bg-red-500/10'
+      : isTx && txDone
+        ? 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 text-foreground'
+        : isTx && txActive
+          ? 'border-ring/30 bg-primary/10 text-muted-foreground animate-pulse-glow'
+          : isTx && txFailed
+            ? 'border-red-500/30 bg-red-500/5 text-red-400 hover:bg-red-500/10'
+            : isDone && isTx
+              ? 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-foreground'
+              : isDone
+                ? 'border-border bg-card hover:bg-accent text-foreground'
+                : 'border-ring/30 bg-primary/10 text-muted-foreground animate-pulse-glow';
+
+  let icon: ReactNode;
+  if (!isDone && !isErr) {
+    icon = <Loader2 className="size-3 animate-spin icon-spin text-primary" />;
+  } else if (isErr || highRisk || txFailed) {
+    icon = <AlertTriangle className="size-3" />;
+  } else if (isTx && txDone) {
+    icon = <CheckCircle className="size-3 text-emerald-500" />;
+  } else if (isTx && txActive) {
+    icon = <Loader2 className="size-3 animate-spin icon-spin text-primary" />;
+  } else if (isTx) {
+    icon = <Wallet className="size-3 text-amber-500" />;
+  } else {
+    icon = <CheckCircle className="size-3 text-emerald-500" />;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors cursor-pointer ${borderClass}`}
+    >
+      {icon}
+      <span className="font-medium">{getToolLabel(toolName, locale)}</span>
+      {summary && <span className="max-w-[120px] truncate text-muted-foreground">{summary}</span>}
+    </button>
+  );
+}
 
 export const Message = memo(function Message({ message, conversationId, readOnly }: MessageProps) {
   const isUser = message.role === 'user';
@@ -251,30 +349,19 @@ export const Message = memo(function Message({ message, conversationId, readOnly
               const output = isDone ? (part.output as Record<string, unknown> | undefined) : undefined;
               const hidden = output?._hidden;
               if (hidden) return null;
-              const highRisk = output ? isHighRisk(output) : false;
-              const summary = isDone && output ? getToolSummary(tName, output, locale) : null;
 
               return (
-                <button
+                <ToolBadge
                   key={part.toolCallId}
-                  type="button"
+                  toolCallId={part.toolCallId}
+                  toolName={tName}
+                  isDone={isDone}
+                  isErr={isErr}
+                  output={output}
+                  conversationId={conversationId}
+                  locale={locale}
                   onClick={() => onBadgeClick?.(part.toolCallId)}
-                  className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors cursor-pointer ${
-                    isErr
-                      ? 'border-red-500/30 bg-red-500/10 text-red-400'
-                      : highRisk
-                        ? 'border-red-500/30 bg-red-500/5 text-red-400 hover:bg-red-500/10'
-                        : isDone
-                          ? 'border-border bg-card hover:bg-accent text-foreground'
-                          : 'border-ring/30 bg-primary/10 text-muted-foreground animate-pulse-glow'
-                  }`}
-                >
-                  {!isDone && !isErr && <Loader2 className="size-3 animate-spin text-primary" />}
-                  {isDone && !highRisk && <CheckCircle className="size-3 text-emerald-500" />}
-                  {(isErr || highRisk) && <AlertTriangle className="size-3" />}
-                  <span className="font-medium">{getToolLabel(tName, locale)}</span>
-                  {summary && <span className="max-w-[120px] truncate text-muted-foreground">{summary}</span>}
-                </button>
+                />
               );
             }
 

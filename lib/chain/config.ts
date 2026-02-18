@@ -1,21 +1,22 @@
-import { bsc, bscTestnet } from 'wagmi/chains';
+import { bsc } from 'wagmi/chains';
+import { opBNB } from 'viem/chains';
 import { http } from 'wagmi';
 import {
   getContracts as getPancakeContracts,
   getChainTokens,
 } from '@/lib/services/pancakeswap-data';
 
-export const supportedChains = [bsc, bscTestnet] as const;
+export const supportedChains = [bsc, opBNB] as const;
 
 // RPC URLs — overridable via env vars
 export const RPC_URLS: Record<number, string> = {
   [bsc.id]: process.env.RPC_URL_56 ?? 'https://bsc-dataseed.binance.org',
-  [bscTestnet.id]: process.env.RPC_URL_97 ?? 'https://bsc-testnet-dataseed.bnbchain.org',
+  [opBNB.id]: process.env.RPC_URL_204 ?? 'https://opbnb-mainnet-rpc.bnbchain.org',
 };
 
 export const transports = {
   [bsc.id]: http(RPC_URLS[bsc.id]),
-  [bscTestnet.id]: http(RPC_URLS[bscTestnet.id]),
+  [opBNB.id]: http(RPC_URLS[opBNB.id]),
 };
 
 // ── Chain-aware token addresses ─────────────────────────────

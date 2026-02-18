@@ -7,6 +7,8 @@ export interface StoredMessage {
   content: string;
   parts?: Array<{ type: string; [key: string]: unknown }>;
   createdAt?: number;
+  /** Hidden messages are auto-injected context (tx completion, form submission). Not shown in UI. */
+  hidden?: boolean;
 }
 
 export type ConversationScope = 'guest' | 'wallet';

@@ -14,16 +14,19 @@ export function MemoryUpdateCard({
   update,
   onApply,
   onSkip,
+  locale = 'en',
 }: {
   update: MemoryUpdate;
   onApply: () => void;
   onSkip: () => void;
+  locale?: string;
 }) {
+  const zh = locale === 'zh';
   return (
     <div className="mt-3 animate-message-in rounded-xl border border-primary/20 bg-primary/[0.04] p-4">
       <div className="mb-2.5 flex items-center gap-2">
         <BookOpen className="size-4 text-primary" />
-        <span className="text-xs font-semibold text-foreground">Memory Update Suggestion</span>
+        <span className="text-xs font-semibold text-foreground">{zh ? '记忆更新建议' : 'Memory Update Suggestion'}</span>
       </div>
 
       {/* Diff-style preview */}
@@ -39,7 +42,7 @@ export function MemoryUpdateCard({
       {update.applied ? (
         <div className="flex items-center gap-1.5 text-xs text-emerald-400">
           <CheckCircle className="size-3.5" />
-          <span>Applied to project memory</span>
+          <span>{zh ? '已应用到项目记忆' : 'Applied to project memory'}</span>
         </div>
       ) : (
         <div className="flex gap-2">
@@ -47,13 +50,13 @@ export function MemoryUpdateCard({
             onClick={onApply}
             className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-all hover:brightness-105 active:scale-[0.98]"
           >
-            <Check className="size-3" /> Apply to Memory
+            <Check className="size-3" /> {zh ? '应用到记忆' : 'Apply to Memory'}
           </button>
           <button
             onClick={onSkip}
             className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
           >
-            Skip
+            {zh ? '跳过' : 'Skip'}
           </button>
         </div>
       )}

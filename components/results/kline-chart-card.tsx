@@ -24,7 +24,8 @@ export interface KlineChartCardData {
   error?: string;
 }
 
-export function KlineChartCard({ data }: { data: KlineChartCardData }) {
+export function KlineChartCard({ data, locale = 'en' }: { data: KlineChartCardData; locale?: string }) {
+  const zh = locale === 'zh';
   const containerRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<{ remove(): void } | null>(null);
   const [ready, setReady] = useState(false);
@@ -137,12 +138,12 @@ export function KlineChartCard({ data }: { data: KlineChartCardData }) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <CandlestickChart className="size-4 text-primary" />
-          K-Line Chart
+          {zh ? 'K线图' : 'K-Line Chart'}
           <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
             {data.symbol}
           </span>
           <span className="text-xs text-muted-foreground">
-            {data.interval} / {data.count} candles
+            {data.interval} / {data.count} {zh ? '根K线' : 'candles'}
           </span>
         </CardTitle>
       </CardHeader>
@@ -154,7 +155,7 @@ export function KlineChartCard({ data }: { data: KlineChartCardData }) {
         />
         {!ready && data.candles?.length > 0 && (
           <div className="flex h-[300px] items-center justify-center text-xs text-muted-foreground">
-            Loading chart...
+            {zh ? '加载图表中...' : 'Loading chart...'}
           </div>
         )}
       </CardContent>

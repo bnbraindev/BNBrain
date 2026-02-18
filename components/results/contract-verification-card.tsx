@@ -27,7 +27,7 @@ export interface ContractVerificationCardData {
 
 const EXPLORER_URLS: Record<number, string> = {
   56: 'https://bscscan.com',
-  97: 'https://testnet.bscscan.com',
+  204: 'https://opbnb.bscscan.com',
   1: 'https://etherscan.io',
 };
 
@@ -41,7 +41,8 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-export function ContractVerificationCard({ data }: { data: ContractVerificationCardData }) {
+export function ContractVerificationCard({ data, locale = 'en' }: { data: ContractVerificationCardData; locale?: string }) {
+  const zh = locale === 'zh';
   const isVerified = data.verificationStatus === 'verified';
   const isTimeout = data.verificationStatus === 'timeout';
   const explorerBase = EXPLORER_URLS[data.chainId] ?? EXPLORER_URLS[56];
@@ -60,10 +61,10 @@ export function ContractVerificationCard({ data }: { data: ContractVerificationC
       : 'border-red-500/30 text-red-400';
 
   const statusText = isVerified
-    ? 'Verified'
+    ? (zh ? '已验证' : 'Verified')
     : isTimeout
-      ? 'Timed Out'
-      : 'Failed';
+      ? (zh ? '已超时' : 'Timed Out')
+      : (zh ? '失败' : 'Failed');
 
   const StatusIcon = isVerified ? CheckCircle : isTimeout ? Clock : XCircle;
   const statusIconColor = isVerified ? 'text-emerald-500' : isTimeout ? 'text-amber-500' : 'text-red-500';
@@ -73,7 +74,7 @@ export function ContractVerificationCard({ data }: { data: ContractVerificationC
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <FileCheck2 className="size-4 text-primary" />
-          Verify: {data.contractName}
+          {zh ? '验证: ' : 'Verify: '}{data.contractName}
           <Badge variant="outline" className={`ml-auto text-xs ${badgeClass}`}>
             {statusText}
           </Badge>
@@ -89,11 +90,11 @@ export function ContractVerificationCard({ data }: { data: ContractVerificationC
         {/* Contract info grid */}
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-lg border px-2.5 py-2">
-            <p className="text-muted-foreground text-xs">Contract</p>
+            <p className="text-muted-foreground text-xs">{zh ? '合约' : 'Contract'}</p>
             <p className="font-mono truncate">{data.contractName}</p>
           </div>
           <div className="rounded-lg border px-2.5 py-2">
-            <p className="text-muted-foreground text-xs">Duration</p>
+            <p className="text-muted-foreground text-xs">{zh ? '耗时' : 'Duration'}</p>
             <p>{formatDuration(data.durationMs)}</p>
           </div>
         </div>
@@ -131,7 +132,7 @@ export function ContractVerificationCard({ data }: { data: ContractVerificationC
             className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 font-medium text-primary hover:bg-primary/20 transition-colors"
           >
             <ExternalLink className="size-3" />
-            View on Explorer
+            {zh ? '在浏览器查看' : 'View on Explorer'}
           </a>
           {data.reportUrl && (
             <a
@@ -141,7 +142,7 @@ export function ContractVerificationCard({ data }: { data: ContractVerificationC
               className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-muted-foreground hover:text-foreground transition-colors"
             >
               <FileCheck2 className="size-3" />
-              View Report
+              {zh ? '查看报告' : 'View Report'}
             </a>
           )}
         </div>

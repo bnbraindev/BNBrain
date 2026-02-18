@@ -336,7 +336,7 @@ export const aiTools = {
     description: 'Check if a token/coin is safe. Detects honeypots, hidden mints, blacklists, holder concentration, and more. Cross-validates honeypot detection with Honeypot.is simulation.',
     inputSchema: z.object({
       address: z.string().describe('The token contract address to check'),
-      chainId: z.number().optional().default(56).describe('Chain ID (56=BSC, 97=BSC Testnet, 204=opBNB)'),
+      chainId: z.number().optional().default(56).describe('Chain ID (56=BSC, 204=opBNB)'),
     }),
     execute: async ({ address, chainId }) => {
       try {
@@ -1352,7 +1352,7 @@ export const aiTools = {
       targetAddress: z.string().describe('The address that was scanned (token or wallet)'),
       reportData: z.any().describe('The full report data object from a previous scan tool'),
       reportType: z.enum(['token_security', 'address_analysis', 'wallet_health']).describe('Type of report'),
-      chainId: z.number().optional().default(97).describe('Chain to store proof on (97=BSC Testnet, 204=opBNB)'),
+      chainId: z.number().optional().default(204).describe('Chain to store proof on (204=opBNB)'),
     }),
     execute: async ({ targetAddress, reportData, reportType, chainId }) => {
       try {
@@ -1516,7 +1516,7 @@ export const aiTools = {
     description: 'Verify if a security report hash exists on-chain. Proves a scan was performed and recorded.',
     inputSchema: z.object({
       reportHash: z.string().describe('The keccak256 report hash to verify (0x prefixed)'),
-      chainId: z.number().optional().default(97),
+      chainId: z.number().optional().default(204),
     }),
     execute: async ({ reportHash, chainId }) => {
       try {
@@ -2342,7 +2342,9 @@ export const aiTools = {
       tokenAddress: z.string().describe('Token contract address to analyze'),
       chainId: z.number().optional().default(56),
     }),
-    execute: async ({ tokenAddress, chainId }) => {
+    execute: async ({ tokenAddress, chainId: rawChainId }) => {
+      // Token security analysis always queries BSC — opBNB has limited API coverage
+      const chainId = rawChainId === 204 ? 56 : rawChainId;
       const startTime = Date.now();
       const log = (msg: string) => console.log(`[deep-analysis] [${Date.now() - startTime}ms] ${msg}`);
       const runCtx = getChatRunContext();

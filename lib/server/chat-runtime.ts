@@ -73,6 +73,8 @@ export const ChatUserContextSchema = z
     modelId: z.string().min(1).max(160).optional(),
     timestamp: z.number().optional(),
     projectId: z.string().optional(),
+    /** Silent context from frontend (tx completion, form submission). Injected into system prompt, not messages. */
+    silentContext: z.any().optional(),
   })
   .optional();
 
@@ -83,6 +85,8 @@ export const ChatRequestSchema = z.object({
   messages: z.array(z.any()).default([]),
   owner: ChatOwnerSchema.optional(),
   userContext: ChatUserContextSchema,
+  /** Silent context injected by frontend (tx completion, form submission, etc.). Prepended as a system message. */
+  silentContext: z.any().optional(),
 });
 
 export type ChatOwner = z.infer<typeof ChatOwnerSchema>;
@@ -241,6 +245,76 @@ function extractTextFromRawMessageParts(parts: unknown): string {
     .join('');
 }
 
+/**
+ * Build a human-readable user message from a silentContext payload.
+ * Used by the worker to replace the MARKER message before calling the AI model.
+ */
+export function buildSilentContextUserMessage(ctx: Record<string, unknown>): string {
+  const type = ctx.type as string | undefined;
+  const hash = ctx.hash as string | undefined;
+  const contractAddress = ctx.contractAddress as string | undefined;
+  const mode = ctx.mode as string | undefined;
+  const chainId = ctx.chainId as number | undefined;
+  const chainName = chainId === 204 ? 'opBNB' : chainId === 56 ? 'BSC' : `Chain ${chainId ?? 'unknown'}`;
+
+  if (type === 'tx_completion') {
+    if (mode === 'contract_deploy' && contractAddress) {
+      const extraContext = ctx.extraContext as string | undefined;
+      let sourceInfo = '';
+      if (extraContext) {
+        try {
+          const extra = JSON.parse(extraContext);
+          if (extra.sourceCode) {
+            sourceInfo = `\n- Source code and contract name are available in the structured event data below. Use them directly for verifyContract — do NOT call compileContractDeploy or inspectContract.`;
+          }
+        } catch { /* ignore */ }
+      }
+      return `[Transaction completed] Contract deployed successfully on ${chainName}.\n- Contract address: ${contractAddress}\n- Tx hash: ${hash}${sourceInfo}\nPlease call verifyContract immediately with the contract address and source code.`;
+    }
+    if (mode === 'contract_call') {
+      return `[Transaction completed] Contract call confirmed on ${chainName}.\n- Tx hash: ${hash}\nPlease continue with any follow-up steps.`;
+    }
+    if (mode === 'swap') {
+      return `[Transaction completed] Swap confirmed on ${chainName}.\n- Tx hash: ${hash}`;
+    }
+    if (mode === 'proof') {
+      return `[Transaction completed] On-chain proof stored on ${chainName}.\n- Tx hash: ${hash}`;
+    }
+    return `[Transaction completed] Transfer confirmed on ${chainName}.\n- Tx hash: ${hash}`;
+  }
+
+  if (type === 'form_submission') {
+    const formId = ctx.formId as string | undefined;
+    const values = ctx.values as Record<string, unknown> | undefined;
+    return `[Form submitted] formId=${formId}\nValues: ${JSON.stringify(values)}`;
+  }
+
+  return `[Silent context] ${JSON.stringify(ctx)}`;
+}
+
+/**
+ * Replace MARKER messages (__ctx__) in raw messages with readable text from silentContext.
+ * Called by the worker before toModelMessages() so the AI sees proper user turns.
+ */
+export function replaceMarkerWithSilentContext(
+  rawMessages: unknown[],
+  silentContext: Record<string, unknown>,
+): unknown[] {
+  const readableText = buildSilentContextUserMessage(silentContext);
+  return rawMessages.map((msg) => {
+    const m = msg as { role?: string; content?: string; parts?: Array<{ type?: string; text?: string }> };
+    if (m.role !== 'user') return msg;
+    const text = typeof m.content === 'string' ? m.content : '';
+    const isMarker =
+      text.includes('__ctx__') ||
+      (Array.isArray(m.parts) && m.parts.some(
+        (p) => p?.type === 'text' && typeof p.text === 'string' && p.text.includes('__ctx__')
+      ));
+    if (!isMarker) return msg;
+    return { ...m, content: readableText, parts: [{ type: 'text', text: readableText }] };
+  });
+}
+
 export function toModelMessages(rawMessages: unknown[]): ModelMessage[] {
   return rawMessages
     .map((message) => {
@@ -273,6 +347,7 @@ export function toStoredMessages(rawMessages: unknown[]): StoredMessage[] {
       role?: string;
       content?: string;
       parts?: unknown;
+      hidden?: boolean;
     };
     const role: StoredMessage['role'] =
       item.role === 'assistant' || item.role === 'system' || item.role === 'user'
@@ -286,13 +361,15 @@ export function toStoredMessages(rawMessages: unknown[]): StoredMessage[] {
         ? item.content
         : extractTextFromRawMessageParts(item.parts);
     if (!content.trim()) continue;
-    messages.push({
+    const stored: StoredMessage = {
       id: item.id?.trim() || `run-msg-${index + 1}`,
       role,
       content,
       parts,
       createdAt: now,
-    });
+    };
+    if (item.hidden) stored.hidden = true;
+    messages.push(stored);
   }
   return messages;
 }
@@ -355,11 +432,53 @@ export async function createChatStreamResult(params: {
         ...(params.userContext ?? { authState: 'guest' }),
       }),
     }),
+    collectUserInput: tool({
+      description:
+        'Open an interactive form modal to collect structured requirements from the user. IMPORTANT: After calling this tool, you MUST STOP and NOT call any other tools. Wait for the "[Form submitted]" message with user\'s values before proceeding. Use this ONLY for complex multi-parameter operations (e.g. token with tax/burn/mint toggles). Do NOT use for simple ERC20 tokens — call deployToken directly instead. Design forms with sensible defaults so the user can just click Submit.',
+      inputSchema: z.object({
+        formId: z.string().describe('Unique form identifier for dedup'),
+        title: z.string().describe('Modal title'),
+        description: z.string().optional().describe('Brief description of what this form collects'),
+        sections: z.array(z.object({
+          title: z.string().describe('Section heading'),
+          collapsed: z.boolean().default(false).describe('Whether this section starts collapsed (use for advanced options)'),
+          fields: z.array(z.object({
+            key: z.string().describe('Field key for the result object'),
+            label: z.string().describe('Display label'),
+            type: z.enum(['text', 'number', 'select', 'switch', 'address', 'textarea']).describe('Input type'),
+            placeholder: z.string().optional(),
+            defaultValue: z.any().optional().describe('Default value'),
+            required: z.boolean().default(false),
+            options: z.array(z.object({
+              label: z.string(),
+              value: z.string(),
+            })).optional().describe('Only for select type'),
+            dependsOn: z.string().optional().describe('Show this field only when the named switch field is truthy'),
+            hint: z.string().optional().describe('Help text shown below the field'),
+            min: z.number().optional(),
+            max: z.number().optional(),
+            suffix: z.string().optional().describe('Unit suffix like "%" or "BNB"'),
+          })),
+        })),
+      }),
+      execute: async (input) => ({
+        ...input,
+        status: 'waiting_for_input',
+      }),
+    }),
   };
+
+  // Build silent context instruction if present
+  let silentContextInstruction = '';
+  if (params.userContext?.silentContext != null) {
+    const raw = params.userContext.silentContext;
+    const contextStr = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    silentContextInstruction = `\n\n## Structured Event Data (from the "[Transaction completed]" or "[Form submitted]" user message)\n${contextStr}`;
+  }
 
   const doStream = () => streamText({
     model: languageModel,
-    system: systemPrompt + userContextInstruction + projectContextInstruction,
+    system: systemPrompt + userContextInstruction + projectContextInstruction + silentContextInstruction,
     messages: params.modelMessages,
     tools: requestTools,
     maxOutputTokens: 16384,

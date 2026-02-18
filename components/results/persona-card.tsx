@@ -42,7 +42,8 @@ interface PersonaData {
   error?: string;
 }
 
-export function PersonaCard({ data }: { data: PersonaData }) {
+export function PersonaCard({ data, locale = 'en' }: { data: PersonaData; locale?: string }) {
+  const zh = locale === 'zh';
   const cardRef = useRef<HTMLDivElement>(null);
 
   if (data.error) {
@@ -52,7 +53,7 @@ export function PersonaCard({ data }: { data: PersonaData }) {
           <div className="flex items-start gap-3">
             <AlertCircle className="size-5 shrink-0 text-destructive" />
             <div>
-              <p className="font-medium text-destructive">Analysis Failed</p>
+              <p className="font-medium text-destructive">{zh ? '分析失败' : 'Analysis Failed'}</p>
               <p className="text-sm text-muted-foreground mt-1">{data.error}</p>
             </div>
           </div>
@@ -69,7 +70,7 @@ export function PersonaCard({ data }: { data: PersonaData }) {
     <Card ref={cardRef}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Wallet Persona</CardTitle>
+          <CardTitle className="text-base">{zh ? '钱包画像' : 'Wallet Persona'}</CardTitle>
           <ShareButton
             cardRef={cardRef}
             shareText={`${data.emoji} ${data.persona}\n\nWallet: ${shortAddr}\nTags: ${data.tags?.join(', ')}\nTraits: ${data.traits?.join(', ')}\n\nPowered by BNBrain`}
@@ -98,7 +99,7 @@ export function PersonaCard({ data }: { data: PersonaData }) {
         {/* Traits */}
         {data.traits?.length > 0 && (
           <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Personality Traits</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{zh ? '性格特征' : 'Personality Traits'}</p>
             <ul className="space-y-1">
               {data.traits.map((trait, i) => (
                 <li key={i} className="text-sm flex items-start gap-2">
@@ -114,10 +115,10 @@ export function PersonaCard({ data }: { data: PersonaData }) {
         {data.stats && (
           <div className="grid grid-cols-2 gap-2">
             {[
-              { label: 'BNB Balance', value: data.stats.bnbBalance },
-              { label: 'Transactions', value: String(data.stats.transactionCount) },
-              { label: 'Approvals', value: String(data.stats.approvalCount) },
-              { label: 'DEX Trades', value: String(data.stats.dexInteractions) },
+              { label: zh ? 'BNB 余额' : 'BNB Balance', value: data.stats.bnbBalance },
+              { label: zh ? '交易数' : 'Transactions', value: String(data.stats.transactionCount) },
+              { label: zh ? '授权数' : 'Approvals', value: String(data.stats.approvalCount) },
+              { label: zh ? 'DEX 交易' : 'DEX Trades', value: String(data.stats.dexInteractions) },
             ].map((stat) => (
               <div key={stat.label} className="rounded-lg bg-muted/30 border border-border/50 px-3 py-2">
                 <p className="text-xs text-muted-foreground">{stat.label}</p>

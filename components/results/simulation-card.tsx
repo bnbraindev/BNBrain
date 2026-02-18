@@ -28,7 +28,8 @@ function shortenAddr(addr: string) {
   return addr.slice(0, 8) + '…' + addr.slice(-4);
 }
 
-export function SimulationCard({ data }: { data: SimulationData }) {
+export function SimulationCard({ data, locale = 'en' }: { data: SimulationData; locale?: string }) {
+  const zh = locale === 'zh';
   const { simulation, target, transaction } = data;
   const success = simulation.wouldSucceed;
 
@@ -37,7 +38,7 @@ export function SimulationCard({ data }: { data: SimulationData }) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Beaker className={`size-4 ${success ? 'text-emerald-500' : 'text-red-500'}`} />
-          Transaction Simulation
+          {zh ? '交易模拟' : 'Transaction Simulation'}
           <Badge
             variant="outline"
             className={`ml-auto text-xs ${
@@ -46,7 +47,7 @@ export function SimulationCard({ data }: { data: SimulationData }) {
                 : 'text-red-400 border-red-500/30'
             }`}
           >
-            {success ? 'Would Succeed' : 'Would Revert'}
+            {success ? (zh ? '会成功' : 'Would Succeed') : (zh ? '会回滚' : 'Would Revert')}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -60,10 +61,10 @@ export function SimulationCard({ data }: { data: SimulationData }) {
           )}
           <div className="text-sm">
             {success ? (
-              <p>This transaction would <strong className="text-emerald-400">succeed</strong> on-chain.</p>
+              <p>{zh ? '该交易将在链上成功执行。' : <>This transaction would <strong className="text-emerald-400">succeed</strong> on-chain.</>}</p>
             ) : (
               <div>
-                <p>This transaction would <strong className="text-red-400">revert</strong>.</p>
+                <p>{zh ? '该交易将会回滚。' : <>This transaction would <strong className="text-red-400">revert</strong>.</>}</p>
                 {simulation.revertReason && (
                   <p className="text-xs text-muted-foreground mt-1 font-mono bg-muted/50 rounded px-2 py-1">
                     {simulation.revertReason}
@@ -80,10 +81,10 @@ export function SimulationCard({ data }: { data: SimulationData }) {
           <div className="flex items-center gap-1.5 rounded-lg border px-2.5 py-2">
             <FileCode2 className="size-3.5 text-muted-foreground shrink-0" />
             <div className="min-w-0">
-              <p className="text-muted-foreground text-xs">Target</p>
+              <p className="text-muted-foreground text-xs">{zh ? '目标' : 'Target'}</p>
               <p className="font-mono truncate">{shortenAddr(target.address)}</p>
               <p className="text-xs text-muted-foreground">
-                {target.isContract ? 'Contract' : 'EOA'}
+                {target.isContract ? (zh ? '合约' : 'Contract') : 'EOA'}
               </p>
             </div>
           </div>
@@ -92,7 +93,7 @@ export function SimulationCard({ data }: { data: SimulationData }) {
           <div className="flex items-center gap-1.5 rounded-lg border px-2.5 py-2">
             <Fuel className="size-3.5 text-muted-foreground shrink-0" />
             <div className="min-w-0">
-              <p className="text-muted-foreground text-xs">Gas estimate</p>
+              <p className="text-muted-foreground text-xs">{zh ? 'Gas 估算' : 'Gas estimate'}</p>
               {simulation.gasEstimate ? (
                 <>
                   <p className="font-mono">{Number(simulation.gasEstimate).toLocaleString()}</p>
@@ -109,7 +110,7 @@ export function SimulationCard({ data }: { data: SimulationData }) {
             <div className="flex items-center gap-1.5 rounded-lg border px-2.5 py-2 col-span-2">
               <Wallet className="size-3.5 text-muted-foreground shrink-0" />
               <div>
-                <p className="text-muted-foreground text-xs">Value</p>
+                <p className="text-muted-foreground text-xs">{zh ? '金额' : 'Value'}</p>
                 <p className="font-mono">{transaction.valueFormatted}</p>
               </div>
             </div>
@@ -119,7 +120,7 @@ export function SimulationCard({ data }: { data: SimulationData }) {
         {/* Method ID */}
         {transaction.methodId && (
           <div className="text-xs">
-            <span className="text-muted-foreground">Method: </span>
+            <span className="text-muted-foreground">{zh ? '方法: ' : 'Method: '}</span>
             <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">
               {transaction.methodId}
             </code>
@@ -129,7 +130,7 @@ export function SimulationCard({ data }: { data: SimulationData }) {
         {/* Return data */}
         {simulation.returnData && simulation.returnData !== '0x' && success && (
           <div className="text-xs">
-            <p className="text-muted-foreground mb-1">Return data:</p>
+            <p className="text-muted-foreground mb-1">{zh ? '返回数据:' : 'Return data:'}</p>
             <pre className="font-mono text-xs bg-muted/50 rounded px-2 py-1.5 overflow-x-auto">
               {simulation.returnData.length > 66
                 ? simulation.returnData.slice(0, 66) + '…'

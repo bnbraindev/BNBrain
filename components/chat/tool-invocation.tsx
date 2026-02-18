@@ -3,7 +3,7 @@
 import { getToolName } from 'ai';
 import type { ComponentProps, ReactNode } from 'react';
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, ChevronRight, ChevronDown, CheckCircle, XCircle, Code2 } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronRight, CheckCircle, XCircle, Code2, Wallet } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { SecurityReport } from '@/components/results/security-report';
 import { BalanceCard } from '@/components/results/balance-card';
@@ -33,6 +33,8 @@ import { KlineChartCard } from '@/components/results/kline-chart-card';
 import { TechnicalAnalysisCard } from '@/components/results/technical-analysis-card';
 import { DeepAnalysisCard } from '@/components/results/deep-analysis-card';
 import { ContractVerificationCard } from '@/components/results/contract-verification-card';
+import { InputFormModal } from '@/components/results/input-form-modal';
+import { CodeViewerModal } from '@/components/ui/code-viewer-modal';
 
 type ToolPart = Parameters<typeof getToolName>[0];
 type SecurityReportData = ComponentProps<typeof SecurityReport>['data'];
@@ -64,6 +66,7 @@ type KlineChartCardData = ComponentProps<typeof KlineChartCard>['data'];
 type TechnicalAnalysisCardData = ComponentProps<typeof TechnicalAnalysisCard>['data'];
 type DeepAnalysisCardData = ComponentProps<typeof DeepAnalysisCard>['data'];
 type ContractVerificationCardData = ComponentProps<typeof ContractVerificationCard>['data'];
+type InputFormModalData = ComponentProps<typeof InputFormModal>['data'];
 
 // ── i18n: tool labels ──────────────────────────────────────────
 
@@ -101,6 +104,7 @@ const TOOL_LABELS_EN: Record<string, string> = {
   technicalAnalysis: 'Technical analysis',
   deepTokenAnalysis: 'Deep analysis',
   verifyContract: 'Contract verification',
+  collectUserInput: 'Input form',
 };
 
 const TOOL_LABELS_ZH: Record<string, string> = {
@@ -137,6 +141,7 @@ const TOOL_LABELS_ZH: Record<string, string> = {
   technicalAnalysis: '技术分析',
   deepTokenAnalysis: '深度分析',
   verifyContract: '合约验证',
+  collectUserInput: '信息收集',
 };
 
 const LOADING_LABELS_EN: Record<string, string> = {
@@ -173,6 +178,7 @@ const LOADING_LABELS_EN: Record<string, string> = {
   technicalAnalysis: 'Computing indicators…',
   deepTokenAnalysis: 'Running deep analysis…',
   verifyContract: 'Verifying contract…',
+  collectUserInput: 'Preparing form…',
 };
 
 const LOADING_LABELS_ZH: Record<string, string> = {
@@ -209,6 +215,7 @@ const LOADING_LABELS_ZH: Record<string, string> = {
   technicalAnalysis: '正在计算技术指标…',
   deepTokenAnalysis: '正在进行深度分析…',
   verifyContract: '正在验证合约…',
+  collectUserInput: '正在准备表单…',
 };
 
 function getToolLabel(toolName: string, locale: string): string {
@@ -221,8 +228,8 @@ function getLoadingLabel(toolName: string, locale: string): string {
   return labels[toolName] ?? (locale === 'zh' ? `正在执行 ${toolName}…` : `Running ${toolName}…`);
 }
 
-/** Tools that require user interaction (signing) — always show inline, never collapse */
-const INTERACTIVE_TOOLS = new Set([
+/** Tools whose output is a tx_plan that requires wallet signing */
+const TX_TOOLS = new Set([
   'buildTransfer',
   'buildSwap',
   'revokeApproval',
@@ -230,7 +237,13 @@ const INTERACTIVE_TOOLS = new Set([
   'compileContractDeploy',
   'deployToken',
   'storeReport',
+]);
+
+/** Tools that require user interaction (signing/form) — always show inline, never collapse */
+const INTERACTIVE_TOOLS = new Set([
+  ...TX_TOOLS,
   'deepTokenAnalysis',
+  'collectUserInput',
 ]);
 
 // ── Loading context from tool args ──────────────────────────
@@ -356,28 +369,32 @@ function getLoadingContext(toolName: string, input: Record<string, unknown> | un
   }
 }
 
-/** Collapsible code preview shown during compile loading */
+/** Button + modal code preview shown during compile loading */
 function LoadingCodePreview({ label, code, locale }: { label: string; code: string; locale: string }) {
   const [open, setOpen] = useState(false);
-  const lines = code.split('\n');
-  const lineCount = lines.length;
-  const preview = open ? code : lines.slice(0, 8).join('\n') + (lineCount > 8 ? '\n…' : '');
+  const lineCount = code.split('\n').length;
 
   return (
     <div className="mt-2 w-full">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full cursor-pointer items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => setOpen(true)}
+        className="flex w-full cursor-pointer items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-primary/10 hover:text-foreground transition-colors"
       >
-        <Code2 className="size-3 shrink-0" />
+        <Code2 className="size-3 shrink-0 text-primary" />
         <span className="font-medium">{label}</span>
         <span className="text-muted-foreground/60">({lineCount} {locale === 'zh' ? '行' : 'lines'})</span>
-        <ChevronRight className={`ml-auto size-3 transition-transform ${open ? 'rotate-90' : ''}`} />
+        <span className="ml-auto text-primary text-[10px] font-medium shrink-0">
+          {locale === 'zh' ? '查看源码' : 'View Source'}
+        </span>
       </button>
-      <pre className="mt-1 max-h-[240px] overflow-auto rounded-md bg-muted/70 p-2 text-xs leading-relaxed text-muted-foreground/60">
-        <code>{preview}</code>
-      </pre>
+      <CodeViewerModal
+        open={open}
+        onOpenChange={setOpen}
+        code={code}
+        fileName={label}
+        locale={locale}
+      />
     </div>
   );
 }
@@ -523,6 +540,14 @@ function getToolSummary(toolName: string, output: Record<string, unknown>, local
       if (status === 'timeout') return locale === 'zh' ? `${label}: 超时` : `${label}: Timed out`;
       return locale === 'zh' ? `${label}: 失败` : `${label}: Failed`;
     }
+    case 'buildTransfer':
+    case 'buildSwap':
+    case 'revokeApproval':
+    case 'buildContractCall':
+    case 'compileContractDeploy':
+    case 'deployToken':
+    case 'storeReport':
+      return locale === 'zh' ? '待签名' : 'Awaiting signature';
     default:
       return locale === 'zh' ? '完成' : 'Done';
   }
@@ -622,7 +647,7 @@ export function ToolInvocation({ toolInvocation, conversationId, locale = 'en', 
     return (
       <div className={`rounded-lg border border-ring/30 bg-primary/10 px-3 py-2 text-xs text-muted-foreground animate-pulse-glow transition-shadow duration-200 hover:shadow-md ${hasCodePreview ? '' : 'flex items-center gap-2'}`}>
         <div className="flex items-center gap-2">
-          <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
+          <Loader2 className="size-3.5 shrink-0 animate-spin icon-spin text-primary" />
           <span>{getLoadingLabel(toolName, locale)}</span>
           {stepLabel && <span className="ml-auto text-xs text-muted-foreground/60">{stepLabel}</span>}
           {!hasCodePreview && context}
@@ -653,7 +678,7 @@ export function ToolInvocation({ toolInvocation, conversationId, locale = 'en', 
   }
 
   // Build the full card
-  const fullCard = renderFullCard(toolName, output, txStateKey, conversationId, readOnly);
+  const fullCard = renderFullCard(toolName, output, txStateKey, conversationId, readOnly, locale);
 
   // Interactive tools (need signing) — always show full inline
   if (INTERACTIVE_TOOLS.has(toolName)) {
@@ -715,14 +740,17 @@ function renderFullCard(
   txStateKey?: string,
   conversationId?: string,
   readOnly?: boolean,
+  locale = 'en',
 ): ReactNode {
   switch (toolName) {
+    case 'getUserContext':
+      return null;
     case 'tokenSecurity':
-      return <SecurityReport data={output as unknown as SecurityReportData} />;
+      return <SecurityReport data={output as unknown as SecurityReportData} locale={locale} />;
     case 'balanceQuery':
-      return <BalanceCard data={output as unknown as BalanceCardData} />;
+      return <BalanceCard data={output as unknown as BalanceCardData} locale={locale} />;
     case 'tokenInfo':
-      return <TokenInfoCard data={output as unknown as TokenInfoCardData} />;
+      return <TokenInfoCard data={output as unknown as TokenInfoCardData} locale={locale} />;
     case 'buildTransfer':
     case 'revokeApproval':
       return (
@@ -731,6 +759,7 @@ function renderFullCard(
           txStateKey={txStateKey}
           conversationId={conversationId}
           readOnly={readOnly}
+          locale={locale}
         />
       );
     case 'buildContractCall':
@@ -742,6 +771,7 @@ function renderFullCard(
           txStateKey={txStateKey}
           conversationId={conversationId}
           readOnly={readOnly}
+          locale={locale}
         />
       );
     case 'buildSwap':
@@ -751,14 +781,15 @@ function renderFullCard(
           txStateKey={txStateKey}
           conversationId={conversationId}
           readOnly={readOnly}
+          locale={locale}
         />
       );
     case 'scanApprovals':
-      return <ApprovalList data={output as unknown as ApprovalListData} />;
+      return <ApprovalList data={output as unknown as ApprovalListData} locale={locale} />;
     case 'walletHealth':
-      return <HealthReportCard data={output as unknown as HealthReportCardData} />;
+      return <HealthReportCard data={output as unknown as HealthReportCardData} locale={locale} />;
     case 'addressAnalysis':
-      return <AddressAnalysisCard data={output as unknown as AddressAnalysisCardData} />;
+      return <AddressAnalysisCard data={output as unknown as AddressAnalysisCardData} locale={locale} />;
     case 'storeReport':
       return (
         <OnchainProofCard
@@ -766,47 +797,57 @@ function renderFullCard(
           txStateKey={txStateKey}
           conversationId={conversationId}
           readOnly={readOnly}
+          locale={locale}
         />
       );
     case 'verifyReport':
-      return <VerifyReportCard data={output as unknown as VerifyReportCardData} />;
+      return <VerifyReportCard data={output as unknown as VerifyReportCardData} locale={locale} />;
     case 'simulateTx':
-      return <SimulationCard data={output as unknown as SimulationCardData} />;
+      return <SimulationCard data={output as unknown as SimulationCardData} locale={locale} />;
     case 'walletPersona':
-      return <PersonaCard data={output as unknown as PersonaCardData} />;
+      return <PersonaCard data={output as unknown as PersonaCardData} locale={locale} />;
     case 'newTokenRadar':
-      return <TokenRadarCard data={output as unknown as TokenRadarCardData} />;
+      return <TokenRadarCard data={output as unknown as TokenRadarCardData} locale={locale} />;
     case 'checkPhishing':
-      return <PhishingCard data={output as unknown as PhishingCardData} />;
+      return <PhishingCard data={output as unknown as PhishingCardData} locale={locale} />;
     case 'checkDapp':
-      return <DappSecurityCard data={output as unknown as DappSecurityCardData} />;
+      return <DappSecurityCard data={output as unknown as DappSecurityCardData} locale={locale} />;
     case 'decodeTransaction':
-      return <TxDecodeCard data={output as unknown as TxDecodeCardData} />;
+      return <TxDecodeCard data={output as unknown as TxDecodeCardData} locale={locale} />;
     case 'searchTokenByName':
-      return <TokenSearchCard data={output as unknown as TokenSearchCardData} />;
+      return <TokenSearchCard data={output as unknown as TokenSearchCardData} locale={locale} />;
     case 'checkNft':
-      return <NftSecurityCard data={output as unknown as NftSecurityCardData} />;
+      return <NftSecurityCard data={output as unknown as NftSecurityCardData} locale={locale} />;
     case 'checkApprovalRisk':
-      return <ApprovalRiskCard data={output as unknown as ApprovalRiskCardData} />;
+      return <ApprovalRiskCard data={output as unknown as ApprovalRiskCardData} locale={locale} />;
     case 'checkGasPrice':
-      return <GasPriceCard data={output as unknown as GasPriceCardData} />;
+      return <GasPriceCard data={output as unknown as GasPriceCardData} locale={locale} />;
     case 'inspectContract':
-      return <ContractInfoCard data={output as unknown as ContractInfoCardData} />;
+      return <ContractInfoCard data={output as unknown as ContractInfoCardData} locale={locale} />;
     case 'getTokenTransferHistory':
-      return <TransferHistoryCard data={output as unknown as TransferHistoryCardData} />;
+      return <TransferHistoryCard data={output as unknown as TransferHistoryCardData} locale={locale} />;
     case 'checkLiquidity':
     case 'checkPairReserves':
-      return <LiquidityCard data={output as unknown as LiquidityCardData} />;
+      return <LiquidityCard data={output as unknown as LiquidityCardData} locale={locale} />;
     case 'binanceTicker':
-      return <BinanceTickerCard data={output as unknown as BinanceTickerCardData} />;
+      return <BinanceTickerCard data={output as unknown as BinanceTickerCardData} locale={locale} />;
     case 'binanceKlines':
-      return <KlineChartCard data={output as unknown as KlineChartCardData} />;
+      return <KlineChartCard data={output as unknown as KlineChartCardData} locale={locale} />;
     case 'technicalAnalysis':
-      return <TechnicalAnalysisCard data={output as unknown as TechnicalAnalysisCardData} />;
+      return <TechnicalAnalysisCard data={output as unknown as TechnicalAnalysisCardData} locale={locale} />;
     case 'deepTokenAnalysis':
-      return <DeepAnalysisCard data={output as unknown as DeepAnalysisCardData} chatId={conversationId} />;
+      return <DeepAnalysisCard data={output as unknown as DeepAnalysisCardData} locale={locale} chatId={conversationId} />;
     case 'verifyContract':
-      return <ContractVerificationCard data={output as unknown as ContractVerificationCardData} />;
+      return <ContractVerificationCard data={output as unknown as ContractVerificationCardData} locale={locale} />;
+    case 'collectUserInput':
+      return (
+        <InputFormModal
+          data={output as unknown as InputFormModalData}
+          conversationId={conversationId}
+          readOnly={readOnly}
+          locale={locale}
+        />
+      );
     default:
       return <FallbackResult data={output} />;
   }
@@ -825,5 +866,5 @@ function FallbackResult({ data }: { data: unknown }) {
 }
 
 // ── Exports for CardPanel / CompactCardView ─────────────────
-export { getToolLabel, getToolSummary, getLoadingLabel, INTERACTIVE_TOOLS, isHighRisk, renderFullCard };
+export { getToolLabel, getToolSummary, getLoadingLabel, INTERACTIVE_TOOLS, TX_TOOLS, isHighRisk, renderFullCard };
 export type { ToolPart };

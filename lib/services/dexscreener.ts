@@ -18,7 +18,6 @@ const BASE = 'https://api.dexscreener.com';
 /** DexScreener chain slugs for BNB ecosystem. */
 const CHAIN_SLUG_MAP: Record<number, string> = {
   56: 'bsc',
-  97: 'bsc', // testnet tokens rarely listed, but use same slug
   204: 'opbnb',
 };
 
@@ -279,7 +278,6 @@ const GECKO_BASE = 'https://api.geckoterminal.com/api/v2';
 /** GeckoTerminal chain slug mapping. */
 const GECKO_CHAIN_MAP: Record<number, string> = {
   56: 'bsc',
-  97: 'bsc',
   204: 'opbnb',
 };
 

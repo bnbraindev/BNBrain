@@ -32,9 +32,12 @@ export interface TokenInfoCardProps {
     url: string;
     error?: string;
   };
+  locale?: string;
 }
 
-export function TokenInfoCard({ data }: TokenInfoCardProps) {
+export function TokenInfoCard({ data, locale = 'en' }: TokenInfoCardProps) {
+  const zh = locale === 'zh';
+
   if (data.error) {
     return (
       <Card className="border-destructive/50 bg-destructive/5">
@@ -90,11 +93,11 @@ export function TokenInfoCard({ data }: TokenInfoCardProps) {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">24h Volume</p>
+            <p className="text-xs text-muted-foreground mb-1">{zh ? '24h 成交量' : '24h Volume'}</p>
             <p className="font-semibold">{fmt(data.volume24h)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Liquidity</p>
+            <p className="text-xs text-muted-foreground mb-1">{zh ? '流动性' : 'Liquidity'}</p>
             <p className="font-semibold">{fmt(data.liquidity)}</p>
           </div>
           <div>
@@ -102,7 +105,7 @@ export function TokenInfoCard({ data }: TokenInfoCardProps) {
             <p className="font-semibold">{fmt(data.fdv)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Chain</p>
+            <p className="text-xs text-muted-foreground mb-1">{zh ? '链' : 'Chain'}</p>
             <p className="font-semibold uppercase">{data.chainId}</p>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTransactionExecutor } from '@/lib/hooks/use-tx';
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTxCompletionStore } from '@/lib/stores/tx-completion-store';
 
 interface OnchainProofData {
   type: string;
@@ -25,7 +26,6 @@ interface OnchainProofData {
 
 const CHAIN_EXPLORERS: Record<number, string> = {
   56: 'https://bscscan.com',
-  97: 'https://testnet.bscscan.com',
   204: 'https://opbnbscan.com',
 };
 
@@ -38,12 +38,15 @@ export function OnchainProofCard({
   txStateKey,
   conversationId,
   readOnly,
+  locale = 'en',
 }: {
   data: OnchainProofData;
   txStateKey?: string;
   conversationId?: string;
   readOnly?: boolean;
+  locale?: string;
 }) {
+  const zh = locale === 'zh';
   const { status, hash, error, errorDetails, sendContractCall, reset } =
     useTransactionExecutor({
       cacheKey: txStateKey,
@@ -60,8 +63,26 @@ export function OnchainProofCard({
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
-  const explorer = CHAIN_EXPLORERS[data.chainId] ?? CHAIN_EXPLORERS[97];
-  const chainName = data.chainId === 97 ? 'BSC Testnet' : data.chainId === 204 ? 'opBNB' : 'BSC';
+  // Push tx completion event when status transitions to 'success'
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    const wasTerminal = ['success', 'error', 'cancelled'].includes(prevStatusRef.current);
+    prevStatusRef.current = status;
+    if (wasTerminal) return;
+    if (status !== 'success' || !hash) return;
+    if (!conversationId) return;
+
+    useTxCompletionStore.getState().push({
+      conversationId,
+      toolName: 'storeReport',
+      mode: 'proof',
+      hash,
+      chainId: data.chainId,
+    });
+  }, [status, hash, conversationId, data.chainId]);
+
+  const explorer = CHAIN_EXPLORERS[data.chainId] ?? CHAIN_EXPLORERS[56];
+  const chainName = data.chainId === 204 ? 'opBNB' : 'BSC';
 
   const handleStore = useCallback(async () => {
     await sendContractCall({
@@ -83,7 +104,7 @@ export function OnchainProofCard({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <FileCheck className="size-4 text-emerald-500" aria-hidden="true" />
-          On-chain Proof
+          {zh ? '链上存证' : 'On-chain Proof'}
           <Badge variant="outline" className="ml-auto text-xs font-normal">
             {chainName}
           </Badge>
@@ -92,31 +113,31 @@ export function OnchainProofCard({
       <CardContent className="space-y-3" aria-live="polite">
         <div className="space-y-2 text-xs">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Report type</span>
+            <span className="text-muted-foreground">{zh ? '报告类型' : 'Report type'}</span>
             <span className="font-mono">{data.metadata.reportType}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">Report hash</span>
+            <span className="text-muted-foreground">{zh ? '报告哈希' : 'Report hash'}</span>
             <div className="flex items-center gap-1">
               <span className="font-mono text-xs">{shortenHash(data.reportHash)}</span>
               <button
                 type="button"
                 onClick={copyHash}
                 className="p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0B90B]/60"
-                aria-label={copied ? 'Report hash copied' : 'Copy report hash'}
+                aria-label={copied ? (zh ? '已复制报告哈希' : 'Report hash copied') : (zh ? '复制报告哈希' : 'Copy report hash')}
               >
                 {copied ? <Check className="size-3" aria-hidden="true" /> : <Copy className="size-3" aria-hidden="true" />}
               </button>
             </div>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Target</span>
+            <span className="text-muted-foreground">{zh ? '目标' : 'Target'}</span>
             <span className="font-mono text-xs">
               {data.metadata.targetAddress.slice(0, 8)}…{data.metadata.targetAddress.slice(-4)}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Registry</span>
+            <span className="text-muted-foreground">{zh ? '注册表' : 'Registry'}</span>
             <a
               href={`${explorer}/address/${data.metadata.registry}`}
               target="_blank"
@@ -136,20 +157,20 @@ export function OnchainProofCard({
             onClick={handleStore}
           >
             <ShieldCheck className="size-4 mr-1.5" aria-hidden="true" />
-            Sign & Store Proof On-chain
+            {zh ? '签名并存证上链' : 'Sign & Store Proof On-chain'}
           </Button>
         )}
 
         {!readOnly && status === 'confirming' && (
           <div className="text-xs text-center text-muted-foreground py-2 animate-pulse">
-            Waiting for wallet confirmation…
+            {zh ? '等待钱包确认…' : 'Waiting for wallet confirmation…'}
           </div>
         )}
 
         {status === 'pending' && hash && (
           <div className="space-y-2">
             <div className="text-xs text-center text-[#F0B90B] py-1 animate-pulse">
-              Transaction pending…
+              {zh ? '交易处理中…' : 'Transaction pending…'}
             </div>
             <a
               href={`${explorer}/tx/${hash}`}
@@ -157,7 +178,7 @@ export function OnchainProofCard({
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1 text-xs text-[#F0B90B] hover:underline"
             >
-              View on explorer <ExternalLink className="size-3" aria-hidden="true" />
+              {zh ? '在浏览器查看' : 'View on explorer'} <ExternalLink className="size-3" aria-hidden="true" />
             </a>
           </div>
         )}
@@ -165,7 +186,7 @@ export function OnchainProofCard({
         {status === 'success' && hash && (
           <div className="space-y-2 rounded-lg bg-emerald-500/10 p-3">
             <p className="text-xs text-emerald-400 font-medium text-center">
-              Proof stored on-chain successfully!
+              {zh ? '存证已成功上链！' : 'Proof stored on-chain successfully!'}
             </p>
             <a
               href={`${explorer}/tx/${hash}`}
@@ -173,7 +194,7 @@ export function OnchainProofCard({
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1 text-xs text-emerald-400 hover:underline"
             >
-              View transaction <ExternalLink className="size-3" aria-hidden="true" />
+              {zh ? '查看交易' : 'View transaction'} <ExternalLink className="size-3" aria-hidden="true" />
             </a>
           </div>
         )}
@@ -181,11 +202,11 @@ export function OnchainProofCard({
         {status === 'cancelled' && (
           <div className="space-y-2 rounded-lg bg-amber-500/10 p-3">
             <p className="text-xs text-amber-300 text-center">
-              Wallet request canceled. No proof was stored.
+              {zh ? '钱包请求已取消。未存储存证。' : 'Wallet request canceled. No proof was stored.'}
             </p>
             {!readOnly && (
               <Button variant="outline" size="sm" className="w-full" onClick={reset}>
-                Try again
+                {zh ? '重试' : 'Try again'}
               </Button>
             )}
           </div>
@@ -193,11 +214,11 @@ export function OnchainProofCard({
 
         {status === 'error' && (
           <div className="space-y-2">
-            <p className="text-xs text-destructive text-center">{error ?? 'Transaction failed'}</p>
+            <p className="text-xs text-destructive text-center">{error ?? (zh ? '交易失败' : 'Transaction failed')}</p>
             {errorDetails ? (
               <details>
                 <summary className="cursor-pointer text-xs text-muted-foreground text-center">
-                  Technical details
+                  {zh ? '技术详情' : 'Technical details'}
                 </summary>
                 <p className="mt-1 text-xs text-muted-foreground break-all whitespace-pre-wrap">
                   {errorDetails}
@@ -206,7 +227,7 @@ export function OnchainProofCard({
             ) : null}
             {!readOnly && (
               <Button variant="outline" size="sm" className="w-full" onClick={reset}>
-                Try again
+                {zh ? '重试' : 'Try again'}
               </Button>
             )}
           </div>
@@ -224,8 +245,9 @@ interface VerifyResultData {
   message: string;
 }
 
-export function VerifyReportCard({ data }: { data: VerifyResultData }) {
-  const explorer = CHAIN_EXPLORERS[data.chainId] ?? CHAIN_EXPLORERS[97];
+export function VerifyReportCard({ data, locale = 'en' }: { data: VerifyResultData; locale?: string }) {
+  const zh = locale === 'zh';
+  const explorer = CHAIN_EXPLORERS[data.chainId] ?? CHAIN_EXPLORERS[56];
 
   return (
     <Card className={data.exists ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'}>
@@ -235,23 +257,23 @@ export function VerifyReportCard({ data }: { data: VerifyResultData }) {
             className={`size-4 ${data.exists ? 'text-emerald-500' : 'text-amber-500'}`}
             aria-hidden="true"
           />
-          Report Verification
+          {zh ? '报告验证' : 'Report Verification'}
           <Badge
             variant="outline"
             className={`ml-auto text-xs ${data.exists ? 'text-emerald-400 border-emerald-500/30' : 'text-amber-400 border-amber-500/30'}`}
           >
-            {data.exists ? 'Verified' : 'Not Found'}
+            {data.exists ? (zh ? '已验证' : 'Verified') : (zh ? '未找到' : 'Not Found')}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         <p className="text-sm">{data.message}</p>
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Hash</span>
+          <span className="text-muted-foreground">{zh ? '哈希' : 'Hash'}</span>
           <span className="font-mono text-xs">{shortenHash(data.reportHash)}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Registry</span>
+          <span className="text-muted-foreground">{zh ? '注册表' : 'Registry'}</span>
           <a
             href={`${explorer}/address/${data.registry}`}
             target="_blank"

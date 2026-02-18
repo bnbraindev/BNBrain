@@ -15,9 +15,11 @@ interface ShareButtonProps {
   cardRef: React.RefObject<HTMLDivElement | null>;
   /** Short text summary for sharing */
   shareText: string;
+  locale?: string;
 }
 
-export function ShareButton({ cardRef, shareText }: ShareButtonProps) {
+export function ShareButton({ cardRef, shareText, locale = 'en' }: ShareButtonProps) {
+  const zh = locale === 'zh';
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
@@ -64,7 +66,7 @@ export function ShareButton({ cardRef, shareText }: ShareButtonProps) {
           variant="ghost"
           size="icon"
           className="size-7 shrink-0"
-          aria-label={copied ? 'Share text copied' : 'Open share options'}
+          aria-label={copied ? (zh ? '已复制分享文本' : 'Share text copied') : (zh ? '打开分享选项' : 'Open share options')}
         >
           {copied ? (
             <Check className="size-3.5 text-emerald-500" aria-hidden="true" />
@@ -76,15 +78,15 @@ export function ShareButton({ cardRef, shareText }: ShareButtonProps) {
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem onClick={handleCopyText} className="gap-2 text-xs">
           <Share2 className="size-3.5" aria-hidden="true" />
-          Copy as text
+          {zh ? '复制文本' : 'Copy as text'}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleShareTwitter} className="gap-2 text-xs">
           <Twitter className="size-3.5" aria-hidden="true" />
-          Share on X
+          {zh ? '分享到 X' : 'Share on X'}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleDownloadImage} className="gap-2 text-xs">
           <Download className="size-3.5" aria-hidden="true" />
-          Save as image
+          {zh ? '保存为图片' : 'Save as image'}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

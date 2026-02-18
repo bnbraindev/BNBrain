@@ -35,7 +35,8 @@ function fmtPrice(n: number): string {
   return `$${n.toFixed(8)}`;
 }
 
-export function BinanceTickerCard({ data }: { data: BinanceTickerCardData }) {
+export function BinanceTickerCard({ data, locale = 'en' }: { data: BinanceTickerCardData; locale?: string }) {
+  const zh = locale === 'zh';
   if (data.error) {
     return (
       <Card className="border-destructive/40">
@@ -56,7 +57,7 @@ export function BinanceTickerCard({ data }: { data: BinanceTickerCardData }) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <BarChart3 className="size-4 text-primary" />
-          Binance 24h Ticker
+          {zh ? '币安 24h 行情' : 'Binance 24h Ticker'}
           <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
             {data.symbol}
           </span>
@@ -76,16 +77,16 @@ export function BinanceTickerCard({ data }: { data: BinanceTickerCardData }) {
 
         {/* Stats grid */}
         <div className="grid grid-cols-3 gap-3">
-          <StatCell label="24h High" value={fmtPrice(data.highPrice)} />
-          <StatCell label="24h Low" value={fmtPrice(data.lowPrice)} />
+          <StatCell label={zh ? '24h 最高' : '24h High'} value={fmtPrice(data.highPrice)} />
+          <StatCell label={zh ? '24h 最低' : '24h Low'} value={fmtPrice(data.lowPrice)} />
           <StatCell label="VWAP" value={fmtPrice(data.weightedAvgPrice)} />
-          <StatCell label="Volume" value={fmtNum(data.volume)} />
-          <StatCell label="Quote Vol" value={`$${fmtNum(data.quoteVolume)}`} />
-          <StatCell label="Trades" value={fmtNum(data.tradeCount, 0)} />
-          <StatCell label="Bid" value={fmtPrice(data.bidPrice)} />
-          <StatCell label="Ask" value={fmtPrice(data.askPrice)} />
+          <StatCell label={zh ? '成交量' : 'Volume'} value={fmtNum(data.volume)} />
+          <StatCell label={zh ? '报价量' : 'Quote Vol'} value={`$${fmtNum(data.quoteVolume)}`} />
+          <StatCell label={zh ? '成交笔数' : 'Trades'} value={fmtNum(data.tradeCount, 0)} />
+          <StatCell label={zh ? '买入价' : 'Bid'} value={fmtPrice(data.bidPrice)} />
+          <StatCell label={zh ? '卖出价' : 'Ask'} value={fmtPrice(data.askPrice)} />
           <StatCell
-            label="Spread"
+            label={zh ? '价差' : 'Spread'}
             value={`${((data.askPrice - data.bidPrice) / data.lastPrice * 100).toFixed(4)}%`}
           />
         </div>

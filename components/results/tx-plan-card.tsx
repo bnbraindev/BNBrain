@@ -3,7 +3,6 @@
 import {
   AlertCircle,
   CheckCircle,
-  ChevronRight,
   Code2,
   Copy,
   ExternalLink,
@@ -15,12 +14,14 @@ import {
 } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatEther } from 'viem';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTransactionExecutor } from '@/lib/hooks/use-tx';
 import { EXPLORER_URLS } from '@/lib/utils/constants';
+import { CodeViewerModal } from '@/components/ui/code-viewer-modal';
+import { useTxCompletionStore } from '@/lib/stores/tx-completion-store';
 
 type TxPlanMode = 'native_transfer' | 'contract_call' | 'contract_deploy';
 type TxCardTheme = 'amber' | 'blue' | 'emerald' | 'purple' | 'rose' | 'slate';
@@ -70,35 +71,40 @@ function formatWeiValue(value?: string): string {
   }
 }
 
-function modeLabel(mode: TxPlanMode): string {
-  if (mode === 'contract_deploy') return 'Contract Deploy';
-  if (mode === 'contract_call') return 'Contract Call';
-  return 'Native Transfer';
+function modeLabel(mode: TxPlanMode, locale = 'en'): string {
+  const zh = locale === 'zh';
+  if (mode === 'contract_deploy') return zh ? '合约部署' : 'Contract Deploy';
+  if (mode === 'contract_call') return zh ? '合约调用' : 'Contract Call';
+  return zh ? '原生转账' : 'Native Transfer';
 }
 
-/** Collapsible Solidity source code preview */
-function SourceCodePreview({ code, contractName }: { code: string; contractName?: string }) {
+/** Button + modal Solidity source code preview */
+function SourceCodePreview({ code, contractName, locale = 'en' }: { code: string; contractName?: string; locale?: string }) {
   const [open, setOpen] = useState(false);
-  const lines = code.split('\n');
-  const lineCount = lines.length;
-  const preview = open ? code : lines.slice(0, 6).join('\n') + (lineCount > 6 ? '\n…' : '');
+  const lineCount = code.split('\n').length;
   const label = contractName ? `${contractName}.sol` : 'Contract.sol';
 
   return (
     <div>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full cursor-pointer items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => setOpen(true)}
+        className="flex w-full cursor-pointer items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-primary/10 hover:text-foreground transition-colors"
       >
-        <Code2 className="size-3 shrink-0" />
+        <Code2 className="size-3 shrink-0 text-primary" />
         <span className="font-medium">{label}</span>
-        <span className="text-muted-foreground/60">({lineCount} lines)</span>
-        <ChevronRight className={`ml-auto size-3 transition-transform ${open ? 'rotate-90' : ''}`} />
+        <span className="text-muted-foreground/60">({lineCount} {locale === 'zh' ? '行' : 'lines'})</span>
+        <span className="ml-auto text-primary text-[10px] font-medium shrink-0">
+          {locale === 'zh' ? '查看源码' : 'View Source'}
+        </span>
       </button>
-      <pre className="mt-1.5 max-h-[280px] overflow-auto rounded-md bg-zinc-900 p-2.5 text-xs leading-relaxed text-zinc-300">
-        <code>{preview}</code>
-      </pre>
+      <CodeViewerModal
+        open={open}
+        onOpenChange={setOpen}
+        code={code}
+        fileName={label}
+        locale={locale}
+      />
     </div>
   );
 }
@@ -108,12 +114,15 @@ export function TxPlanCard({
   txStateKey,
   conversationId,
   readOnly,
+  locale = 'en',
 }: {
   data: TxPlanData;
   txStateKey?: string;
   conversationId?: string;
   readOnly?: boolean;
+  locale?: string;
 }) {
+  const zh = locale === 'zh';
   const { isConnected } = useAccount();
   const derivedTxStateKey = useMemo(
     () =>
@@ -153,11 +162,37 @@ export function TxPlanCard({
     ? tx.receipt.contractAddress
     : undefined;
 
+  // Push tx completion event when status transitions to 'success'
+  const prevStatusRef = useRef(tx.status);
+  useEffect(() => {
+    const wasTerminal = ['success', 'error', 'cancelled'].includes(prevStatusRef.current);
+    prevStatusRef.current = tx.status;
+    if (wasTerminal) return;
+    if (tx.status !== 'success' || !tx.hash) return;
+    if (!conversationId) return;
+
+    useTxCompletionStore.getState().push({
+      conversationId,
+      toolName: data.mode === 'contract_deploy' ? 'compileContractDeploy' : 'buildContractCall',
+      mode: data.mode,
+      hash: tx.hash,
+      contractAddress: isDeployMode ? tx.receipt?.contractAddress ?? undefined : undefined,
+      chainId,
+      // Include source code and contract name so AI can verify without recompiling
+      extraContext: isDeployMode && data.metadata?.sourceCode
+        ? JSON.stringify({
+            sourceCode: data.metadata.sourceCode,
+            contractName: data.metadata.contractName ?? 'Token',
+          })
+        : undefined,
+    });
+  }, [tx.status, tx.hash, tx.receipt?.contractAddress, conversationId, data.mode, chainId, isDeployMode, data.metadata]);
+
   if (data.error) {
     return (
       <Card className="border-destructive/50 bg-destructive/5">
         <CardContent className="pt-6">
-          <p className="text-sm font-medium text-destructive">Transaction Plan Error</p>
+          <p className="text-sm font-medium text-destructive">{zh ? '交易计划错误' : 'Transaction Plan Error'}</p>
           <p className="mt-1 text-sm text-muted-foreground">{data.error}</p>
         </CardContent>
       </Card>
@@ -165,12 +200,12 @@ export function TxPlanCard({
   }
 
   const theme = data.card?.theme ?? 'blue';
-  const title = data.card?.title ?? 'Transaction Plan';
+  const title = data.card?.title ?? (zh ? '交易计划' : 'Transaction Plan');
   const subtitle =
     data.card?.subtitle ??
     data.description ??
-    'Review details carefully before signing in your wallet.';
-  const confirmText = data.card?.confirmText ?? 'Sign & Send';
+    (zh ? '请仔细审核后在钱包中签名。' : 'Review details carefully before signing in your wallet.');
+  const confirmText = data.card?.confirmText ?? (zh ? '签名并发送' : 'Sign & Send');
   const bullets = data.card?.bullets ?? [];
 
   const handleConfirm = async () => {
@@ -193,7 +228,7 @@ export function TxPlanCard({
           )}
           <span className="min-w-0 truncate">{title}</span>
           <Badge variant="outline" className="ml-auto shrink-0 text-xs">
-            {modeLabel(data.mode)}
+            {modeLabel(data.mode, locale)}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -203,27 +238,27 @@ export function TxPlanCard({
 
         {/* Source code preview for contract deployments */}
         {isDeployMode && sourceCode && (
-          <SourceCodePreview code={sourceCode} contractName={contractName} />
+          <SourceCodePreview code={sourceCode} contractName={contractName} locale={locale} />
         )}
 
         <div className="space-y-2 rounded-lg border bg-background/50 px-3 py-2 text-xs">
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Chain</span>
+            <span className="text-muted-foreground">{zh ? '链' : 'Chain'}</span>
             <span className="font-medium">{chainId}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">To</span>
+            <span className="text-muted-foreground">{zh ? '接收方' : 'To'}</span>
             <span className="font-mono">
-              {data.to ? shortenHex(data.to) : 'Contract Creation'}
+              {data.to ? shortenHex(data.to) : (zh ? '创建合约' : 'Contract Creation')}
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Value</span>
+            <span className="text-muted-foreground">{zh ? '金额' : 'Value'}</span>
             <span className="font-medium">{formatWeiValue(data.value)}</span>
           </div>
           {data.data ? (
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Calldata</span>
+              <span className="text-muted-foreground">{zh ? '调用数据' : 'Calldata'}</span>
               <span className="font-mono">{shortenHex(data.data)}</span>
             </div>
           ) : null}
@@ -240,7 +275,7 @@ export function TxPlanCard({
         {/* Success: show tx hash + contract address for deploys */}
         {tx.status === 'success' && tx.hash ? (
           <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs">
-            <p className="font-medium text-emerald-400">Transaction confirmed</p>
+            <p className="font-medium text-emerald-400">{zh ? '交易已确认' : 'Transaction confirmed'}</p>
             <a
               href={`${explorerBase}/tx/${tx.hash}`}
               target="_blank"
@@ -251,22 +286,21 @@ export function TxPlanCard({
               <ExternalLink className="size-3" />
             </a>
             {contractAddress && (
-              <div className="mt-2 flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1.5">
-                <Rocket className="size-3 shrink-0 text-emerald-400" />
-                <span className="text-emerald-400 font-medium">Contract:</span>
+              <div className="mt-1 flex items-center gap-1">
                 <a
                   href={`${explorerBase}/address/${contractAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-mono text-emerald-400/80 hover:underline truncate"
+                  className="inline-flex items-center gap-1 text-emerald-400/80 hover:underline"
                 >
-                  {contractAddress}
+                  {shortenHex(contractAddress)}
+                  <ExternalLink className="size-3" />
                 </a>
                 <button
                   type="button"
-                  className="ml-auto shrink-0 cursor-pointer rounded p-0.5 text-emerald-500 hover:bg-emerald-500/10"
+                  className="shrink-0 cursor-pointer rounded p-0.5 text-emerald-500 hover:bg-emerald-500/10"
                   onClick={() => navigator.clipboard.writeText(contractAddress)}
-                  title="Copy contract address"
+                  title={zh ? '复制合约地址' : 'Copy contract address'}
                 >
                   <Copy className="size-3" />
                 </button>
@@ -278,8 +312,8 @@ export function TxPlanCard({
         {tx.status === 'pending' ? (
           <div className="rounded-lg border border-[#F0B90B]/40 bg-[#F0B90B]/10 px-3 py-2 text-xs">
             <div className="flex items-center gap-2 text-[#F0B90B]">
-              <Loader2 className="size-3 animate-spin" />
-              Waiting for on-chain confirmation…
+              <Loader2 className="size-3 animate-spin icon-spin" />
+              {zh ? '等待链上确认…' : 'Waiting for on-chain confirmation…'}
             </div>
           </div>
         ) : null}
@@ -288,7 +322,7 @@ export function TxPlanCard({
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
             <div className="flex items-center gap-2">
               <AlertCircle className="size-3" />
-              Wallet request canceled. No transaction was sent.
+              {zh ? '钱包请求已取消，未发送交易。' : 'Wallet request canceled. No transaction was sent.'}
             </div>
           </div>
         ) : null}
@@ -302,7 +336,7 @@ export function TxPlanCard({
             {tx.errorDetails ? (
               <details className="mt-1">
                 <summary className="cursor-pointer text-xs text-muted-foreground">
-                  Technical details
+                  {zh ? '技术详情' : 'Technical details'}
                 </summary>
                 <p className="mt-1 break-all whitespace-pre-wrap text-xs text-muted-foreground">
                   {tx.errorDetails}
@@ -315,7 +349,7 @@ export function TxPlanCard({
         {!readOnly && tx.status === 'idle' ? (
           !isConnected ? (
             <p className="text-center text-sm text-muted-foreground">
-              Connect wallet first to execute this transaction.
+              {zh ? '请先连接钱包以执行交易。' : 'Connect wallet first to execute this transaction.'}
             </p>
           ) : (
             <Button className="w-full" onClick={handleConfirm}>
@@ -327,8 +361,8 @@ export function TxPlanCard({
 
         {!readOnly && tx.status === 'confirming' ? (
           <Button className="w-full" disabled>
-            <Loader2 className="mr-2 size-4 animate-spin" />
-            Confirm in wallet…
+            <Loader2 className="mr-2 size-4 animate-spin icon-spin" />
+            {zh ? '请在钱包中确认…' : 'Confirm in wallet…'}
           </Button>
         ) : null}
 
@@ -337,10 +371,10 @@ export function TxPlanCard({
             {tx.status === 'success' ? (
               <>
                 <CheckCircle className="mr-2 size-4" />
-                New Transaction
+                {zh ? '新交易' : 'New Transaction'}
               </>
             ) : (
-              'Try Again'
+              zh ? '重试' : 'Try Again'
             )}
           </Button>
         ) : null}

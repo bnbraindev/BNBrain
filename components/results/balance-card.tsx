@@ -20,6 +20,7 @@ export interface BalanceCardProps {
       decimals: number;
     }>;
   };
+  locale?: string;
 }
 
 function TokenDot({ isBnb }: { isBnb: boolean }) {
@@ -36,7 +37,8 @@ function TokenDot({ isBnb }: { isBnb: boolean }) {
   );
 }
 
-export function BalanceCard({ data }: BalanceCardProps) {
+export function BalanceCard({ data, locale = 'en' }: BalanceCardProps) {
+  const zh = locale === 'zh';
   const { balances } = data;
   const isEmpty = !balances || balances.length === 0;
 
@@ -45,13 +47,13 @@ export function BalanceCard({ data }: BalanceCardProps) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <Wallet className="size-5" style={{ color: BNB_YELLOW }} />
-          Portfolio
+          {zh ? '持仓' : 'Portfolio'}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {isEmpty ? (
           <p className="text-sm text-muted-foreground py-6 text-center">
-            No tokens found
+            {zh ? '未发现代币' : 'No tokens found'}
           </p>
         ) : (
           <div className="space-y-1">

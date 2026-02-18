@@ -23,19 +23,20 @@ function formatUsd(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-export function TokenSearchCard({ data }: { data: TokenSearchCardData }) {
+export function TokenSearchCard({ data, locale = 'en' }: { data: TokenSearchCardData; locale?: string }) {
+  const zh = locale === 'zh';
   const empty = !data.results || data.results.length === 0;
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Search className="size-4 text-primary" />
-          Token Search Results
+          {zh ? '代币搜索结果' : 'Token Search Results'}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {empty ? (
-          <p className="text-sm text-muted-foreground text-center py-4">{data.message || 'No tokens found.'}</p>
+          <p className="text-sm text-muted-foreground text-center py-4">{data.message || (zh ? '未找到代币。' : 'No tokens found.')}</p>
         ) : (
           <div className="space-y-1">
             {data.results.map((t, i) => (
@@ -46,7 +47,7 @@ export function TokenSearchCard({ data }: { data: TokenSearchCardData }) {
                 </div>
                 <div className="text-right shrink-0 space-y-0.5">
                   <p className="font-medium tabular-nums">${t.priceUsd.toFixed(4)}</p>
-                  <p className="text-xs text-muted-foreground">Vol {formatUsd(t.volume24h)}</p>
+                  <p className="text-xs text-muted-foreground">{zh ? '成交量 ' : 'Vol '}{formatUsd(t.volume24h)}</p>
                 </div>
               </div>
             ))}

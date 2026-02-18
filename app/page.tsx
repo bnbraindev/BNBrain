@@ -316,7 +316,7 @@ export default function Home() {
                 </DropdownMenu>
               )
             ) : sharedViewTitle ? (
-              <span className="max-w-[200px] truncate px-2 py-1.5 text-sm font-medium text-muted-foreground sm:max-w-[300px]">
+              <span className="max-w-[200px] truncate px-2 py-1.5 text-sm font-medium text-foreground sm:max-w-[300px]">
                 {sharedViewTitle}
               </span>
             ) : null}

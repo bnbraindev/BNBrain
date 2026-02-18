@@ -345,7 +345,7 @@ function ProgressCard({
           </span>
         </div>
         <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs text-foreground">
-          <Loader2 className="size-3.5 shrink-0 text-primary animate-spin" />
+          <Loader2 className="size-3.5 shrink-0 text-primary animate-spin icon-spin" />
           <span>{locale === 'zh' ? '正在准备分析...' : 'Preparing analysis...'}</span>
         </div>
         <div className="mt-3 flex items-center justify-end text-xs text-muted-foreground/60">
@@ -406,7 +406,7 @@ function ProgressCard({
                 <CheckCircle className="size-3.5 shrink-0 text-emerald-500" />
               )}
               {step.status === 'running' && (
-                <Loader2 className="size-3.5 shrink-0 text-primary animate-spin" />
+                <Loader2 className="size-3.5 shrink-0 text-primary animate-spin icon-spin" />
               )}
               {step.status === 'failed' && (
                 <XCircle className="size-3.5 shrink-0 text-red-400" />
@@ -436,7 +436,7 @@ function ProgressCard({
       ) : (
         // No steps yet — show initialization
         <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs text-foreground">
-          <Loader2 className="size-3.5 shrink-0 text-primary animate-spin" />
+          <Loader2 className="size-3.5 shrink-0 text-primary animate-spin icon-spin" />
           <span>{locale === 'zh' ? '正在初始化分析...' : 'Initializing analysis...'}</span>
         </div>
       )}

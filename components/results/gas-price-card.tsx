@@ -12,35 +12,36 @@ export interface GasPriceCardData {
   summary?: string;
 }
 
-export function GasPriceCard({ data }: { data: GasPriceCardData }) {
+export function GasPriceCard({ data, locale = 'en' }: { data: GasPriceCardData; locale?: string }) {
+  const zh = locale === 'zh';
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Fuel className="size-4 text-primary" />
-          BSC Gas Price
+          {zh ? 'BSC Gas 费' : 'BSC Gas Price'}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-3">
-            <p className="text-xs text-muted-foreground mb-1">Safe</p>
+            <p className="text-xs text-muted-foreground mb-1">{zh ? '安全' : 'Safe'}</p>
             <p className="text-lg font-bold text-emerald-400">{data.safeGasPrice}</p>
           </div>
           <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 px-2.5 py-3">
-            <p className="text-xs text-muted-foreground mb-1">Standard</p>
+            <p className="text-xs text-muted-foreground mb-1">{zh ? '标准' : 'Standard'}</p>
             <p className="text-lg font-bold text-blue-400">{data.proposeGasPrice}</p>
           </div>
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-2.5 py-3">
-            <p className="text-xs text-muted-foreground mb-1">Fast</p>
+            <p className="text-xs text-muted-foreground mb-1">{zh ? '快速' : 'Fast'}</p>
             <p className="text-lg font-bold text-amber-400">{data.fastGasPrice}</p>
           </div>
         </div>
         {data.suggestBaseFee && (
-          <p className="text-xs text-muted-foreground mt-2 text-center">Base fee: {data.suggestBaseFee}</p>
+          <p className="text-xs text-muted-foreground mt-2 text-center">{zh ? '基础费: ' : 'Base fee: '}{data.suggestBaseFee}</p>
         )}
         {data.lastBlock && (
-          <p className="text-xs text-muted-foreground mt-1 text-center">Block #{data.lastBlock}</p>
+          <p className="text-xs text-muted-foreground mt-1 text-center">{zh ? '区块 #' : 'Block #'}{data.lastBlock}</p>
         )}
       </CardContent>
     </Card>

@@ -35,7 +35,8 @@ function shortenAddr(addr: string) {
   return addr.slice(0, 8) + '…' + addr.slice(-4);
 }
 
-export function LiquidityCard({ data }: { data: LiquidityCardData }) {
+export function LiquidityCard({ data, locale = 'en' }: { data: LiquidityCardData; locale?: string }) {
+  const zh = locale === 'zh';
   const isReservesMode = Boolean(data.reserve0 && data.reserve1);
   const lowLiquidity = typeof data.liquidity === 'number' && data.liquidity < 10000;
 
@@ -44,14 +45,14 @@ export function LiquidityCard({ data }: { data: LiquidityCardData }) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Droplets className="size-4 text-primary" />
-          {isReservesMode ? 'Pool Reserves' : 'Pair Liquidity'}
+          {isReservesMode ? (zh ? '池子储备' : 'Pool Reserves') : (zh ? '交易对流动性' : 'Pair Liquidity')}
           {data.baseToken && data.quoteToken && (
             <span className="text-muted-foreground font-normal">
               {data.baseToken.symbol}/{data.quoteToken.symbol}
             </span>
           )}
           {lowLiquidity && (
-            <Badge variant="outline" className="ml-auto text-xs border-amber-500/30 text-amber-400">Low Liquidity</Badge>
+            <Badge variant="outline" className="ml-auto text-xs border-amber-500/30 text-amber-400">{zh ? '低流动性' : 'Low Liquidity'}</Badge>
           )}
         </CardTitle>
       </CardHeader>
@@ -59,15 +60,15 @@ export function LiquidityCard({ data }: { data: LiquidityCardData }) {
         {!isReservesMode && (
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
             <div className="rounded-lg border px-2 py-2.5">
-              <p className="text-muted-foreground text-xs">Price</p>
+              <p className="text-muted-foreground text-xs">{zh ? '价格' : 'Price'}</p>
               <p className="font-bold">${data.priceUsd?.toFixed(4) ?? '—'}</p>
             </div>
             <div className="rounded-lg border px-2 py-2.5">
-              <p className="text-muted-foreground text-xs">Liquidity</p>
+              <p className="text-muted-foreground text-xs">{zh ? '流动性' : 'Liquidity'}</p>
               <p className="font-bold">{data.liquidityFormatted ?? (typeof data.liquidity === 'number' ? formatUsd(data.liquidity) : '—')}</p>
             </div>
             <div className="rounded-lg border px-2 py-2.5">
-              <p className="text-muted-foreground text-xs">Volume 24h</p>
+              <p className="text-muted-foreground text-xs">{zh ? '24h 成交量' : 'Volume 24h'}</p>
               <p className="font-bold">{data.volume24hFormatted ?? (typeof data.volume24h === 'number' ? formatUsd(data.volume24h) : '—')}</p>
             </div>
           </div>
@@ -76,12 +77,12 @@ export function LiquidityCard({ data }: { data: LiquidityCardData }) {
         {isReservesMode && (
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="rounded-lg border px-2.5 py-2">
-              <p className="text-muted-foreground text-xs">Token 0</p>
+              <p className="text-muted-foreground text-xs">{zh ? '代币 0' : 'Token 0'}</p>
               <p className="font-mono text-xs truncate">{shortenAddr(data.token0 ?? '')}</p>
               <p className="font-bold mt-0.5">{BigInt(data.reserve0 ?? '0').toLocaleString()}</p>
             </div>
             <div className="rounded-lg border px-2.5 py-2">
-              <p className="text-muted-foreground text-xs">Token 1</p>
+              <p className="text-muted-foreground text-xs">{zh ? '代币 1' : 'Token 1'}</p>
               <p className="font-mono text-xs truncate">{shortenAddr(data.token1 ?? '')}</p>
               <p className="font-bold mt-0.5">{BigInt(data.reserve1 ?? '0').toLocaleString()}</p>
             </div>
@@ -93,7 +94,7 @@ export function LiquidityCard({ data }: { data: LiquidityCardData }) {
         )}
 
         {data.dexId && (
-          <p className="text-xs text-muted-foreground">DEX: {data.dexId}</p>
+          <p className="text-xs text-muted-foreground">{zh ? 'DEX: ' : 'DEX: '}{data.dexId}</p>
         )}
         {data.pairAddress && (
           <p className="font-mono text-xs text-muted-foreground break-all">{data.pairAddress}</p>

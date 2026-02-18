@@ -56,7 +56,6 @@ export default async function AdminSettingsPage({
             hasSiweChainIds: Boolean(process.env.SIWE_ALLOWED_CHAIN_IDS?.trim()),
             hasRpcUrls: Boolean(
               process.env.RPC_URL_56?.trim() ||
-                process.env.RPC_URL_97?.trim() ||
                 process.env.RPC_URL_204?.trim()
             ),
           },

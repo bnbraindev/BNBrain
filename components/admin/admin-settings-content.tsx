@@ -29,7 +29,7 @@ interface AdminSettingsContentProps {
     serper: { apiKey: string } | null;
     steel: { apiKey: string; apiUrl?: string } | null;
     siwe: { domain?: string; allowedChainIds?: string } | null;
-    rpc: { url56?: string; url97?: string; url204?: string } | null;
+    rpc: { url56?: string; url204?: string } | null;
     envVars: {
       hasGoplusKey: boolean;
       hasBscscanKey: boolean;
@@ -129,7 +129,6 @@ export function AdminSettingsContent({
 
   // RPC
   const [rpcUrl56, setRpcUrl56] = useState(initialConfig.rpc?.url56 ?? '');
-  const [rpcUrl97, setRpcUrl97] = useState(initialConfig.rpc?.url97 ?? '');
   const [rpcUrl204, setRpcUrl204] = useState(initialConfig.rpc?.url204 ?? '');
   const [rpcValidation, setRpcValidation] = useState<ValidationState>({
     status: 'idle',
@@ -271,7 +270,6 @@ export function AdminSettingsContent({
     setRpcValidation({ status: 'testing', message: t.testing });
     const config: Record<string, string> = {};
     if (rpcUrl56.trim()) config.url56 = rpcUrl56.trim();
-    if (rpcUrl97.trim()) config.url97 = rpcUrl97.trim();
     if (rpcUrl204.trim()) config.url204 = rpcUrl204.trim();
     try {
       const res = await fetch('/api/setup/validate', {
@@ -287,7 +285,7 @@ export function AdminSettingsContent({
     } catch {
       setRpcValidation({ status: 'error', message: t.connectionError });
     }
-  }, [rpcUrl56, rpcUrl97, rpcUrl204, authHeaders, t]);
+  }, [rpcUrl56, rpcUrl204, authHeaders, t]);
 
   // ── Save ────────────────────────────────────────────────
 
@@ -313,10 +311,9 @@ export function AdminSettingsContent({
           ? { domain: siweDomain || undefined, allowedChainIds: siweChainIds || undefined }
           : null;
       services.rpc =
-        rpcUrl56 || rpcUrl97 || rpcUrl204
+        rpcUrl56 || rpcUrl204
           ? {
               url56: rpcUrl56 || undefined,
-              url97: rpcUrl97 || undefined,
               url204: rpcUrl204 || undefined,
             }
           : null;
@@ -335,7 +332,7 @@ export function AdminSettingsContent({
     }
   }, [
     goplusKey, goplusSecret, bscscanKey, noderealKey, serperKey, steelKey, steelUrl,
-    siweDomain, siweChainIds, rpcUrl56, rpcUrl97, rpcUrl204, authHeaders, t,
+    siweDomain, siweChainIds, rpcUrl56, rpcUrl204, authHeaders, t,
   ]);
 
   // ── Render helpers ──────────────────────────────────────
@@ -736,19 +733,6 @@ export function AdminSettingsContent({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">BSC Testnet (Chain 97)</label>
-            <input
-              type="text"
-              value={rpcUrl97}
-              onChange={(e) => {
-                setRpcUrl97(e.target.value);
-                setRpcValidation({ status: 'idle', message: '' });
-              }}
-              placeholder="https://bsc-testnet-dataseed.bnbchain.org"
-              className={inputClass}
-            />
-          </div>
-          <div>
             <label className="mb-1 block text-xs text-muted-foreground">opBNB Mainnet (Chain 204)</label>
             <input
               type="text"
@@ -765,7 +749,7 @@ export function AdminSettingsContent({
             <Button
               onClick={validateRpc}
               disabled={
-                (!rpcUrl56 && !rpcUrl97 && !rpcUrl204) ||
+                (!rpcUrl56 && !rpcUrl204) ||
                 rpcValidation.status === 'testing'
               }
               variant="outline"

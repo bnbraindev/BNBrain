@@ -3,7 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
-import { ArrowDown, BarChart3 } from 'lucide-react';
+import { ArrowDown, BarChart3, Loader2 } from 'lucide-react';
 import { isToolUIPart, getToolName } from 'ai';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -11,6 +11,8 @@ import { CardPanel } from './panel/card-panel';
 import { PanelContext, type PanelCard } from './panel/panel-context';
 import { ChatInput } from './chat-input';
 import { useChatStore } from '@/lib/stores/chat-store';
+import { useTxCompletionStore, type TxCompletionEvent } from '@/lib/stores/tx-completion-store';
+import { useFormCompletionStore } from '@/lib/stores/form-completion-store';
 import { useProjectStore } from '@/lib/stores/project-store';
 import { useI18n } from '@/lib/i18n/context';
 import { mapChatErrorToUserMessage } from '@/lib/utils/chat-error';
@@ -54,8 +56,10 @@ import {
   dedupeUIMessagesById,
   getAssistantOutputMeta,
   hasUnansweredUserTurn,
+  isSilentContextMessage,
   nowMs,
   parseEvmChainId,
+  SILENT_CONTEXT_MARKER,
   toStoredMessages,
 } from './panel/utils';
 
@@ -427,6 +431,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
 
   const userContextRef = useRef(userContext);
   const ownerRef = useRef(ownerIdentity);
+  const silentContextRef = useRef<object | null>(null);
   useEffect(() => {
     userContextRef.current = userContext;
   }, [userContext]);
@@ -442,6 +447,9 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
         prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) => {
           const currentContext = userContextRef.current;
           const currentOwner = ownerRef.current;
+          // Consume pending silent context (one-shot)
+          const pendingSilentCtx = silentContextRef.current;
+          silentContextRef.current = null;
           const requestBody = {
             ...(body ?? {}),
             id,
@@ -450,6 +458,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
             messageId,
             userContext: currentContext,
             owner: currentOwner,
+            ...(pendingSilentCtx ? { silentContext: pendingSilentCtx } : {}),
           };
           return {
             body: requestBody,
@@ -648,19 +657,19 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
   ]);
 
   const visibleMessages = useMemo(() => {
-    const liveMessages = dedupeUIMessagesById(messages).filter((m) => m.role !== 'system');
+    const liveMessages = dedupeUIMessagesById(messages).filter((m) => !isSilentContextMessage(m));
     if (liveMessages.length > 0) return liveMessages;
     if (isReadingSharedConversation && sharedConversation?.messages?.length) {
       return toCachedUIMessages(sharedConversation.messages).filter(
-        (message) => message.role !== 'system'
+        (message) => !isSilentContextMessage(message)
       );
     }
     return liveMessages;
   }, [messages, isReadingSharedConversation, sharedConversation?.messages]);
 
-  // ── Panel cards derivation ────────────────────────────────
+  // ── Panel cards derivation (stabilised reference) ─────────
+  const prevPanelCardsRef = useRef<PanelCard[]>([]);
   const panelCards = useMemo<PanelCard[]>(() => {
-    if (isReadingSharedConversation) return [];
     const cards: PanelCard[] = [];
     for (let mi = 0; mi < visibleMessages.length; mi++) {
       const msg = visibleMessages[mi];
@@ -694,14 +703,23 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
         });
       }
     }
+    // Stabilise: only return a new array when card IDs or states actually changed
+    const prev = prevPanelCardsRef.current;
+    if (
+      cards.length === prev.length &&
+      cards.every((c, i) => c.id === prev[i].id && c.state === prev[i].state)
+    ) {
+      return prev;
+    }
+    prevPanelCardsRef.current = cards;
     return cards;
-  }, [visibleMessages, isReadingSharedConversation]);
+  }, [visibleMessages]);
 
   // ── Panel visibility state ────────────────────────────────
   const [panelManualClosed, setPanelManualClosed] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const hasCards = panelCards.length > 0;
-  const showPanel = hasCards && !panelManualClosed && !isReadingSharedConversation;
+  const showPanel = hasCards && !panelManualClosed;
 
   // Auto-reopen when new cards arrive after manual close
   const prevCardCountRef2 = useRef(0);
@@ -871,6 +889,35 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
         updateConversationContextStatus(conversationId, 'injected', contextFingerprint);
       }
       sendMessage({ text });
+      return true;
+    },
+    [
+      isStreaming,
+      canStartRun,
+      startStreamRun,
+      resetInterruptedHint,
+      isAuthenticated,
+      updateConversationContextStatus,
+      contextFingerprint,
+      sendMessage,
+    ]
+  );
+
+  /** Send context to AI silently — nothing is shown in the chat UI. */
+  const sendSilentContext = useCallback(
+    (conversationId: string, payload: object): boolean => {
+      if (isStreaming) return false;
+      if (!canStartRun()) return false;
+      lastToastErrorRef.current = null;
+      // Store payload so the transport includes it as `silentContext` in the next request
+      silentContextRef.current = payload;
+      startStreamRun(conversationId);
+      resetInterruptedHint();
+      if (isAuthenticated && conversationId) {
+        updateConversationContextStatus(conversationId, 'injected', contextFingerprint);
+      }
+      // Send a marker message that gets hidden from UI but satisfies the AI SDK's send flow
+      sendMessage({ text: SILENT_CONTEXT_MARKER });
       return true;
     },
     [
@@ -1067,6 +1114,78 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     isStreaming,
     sendTextWithConversationId,
   ]);
+
+  // ── Auto-send silent context when a transaction completes (3s countdown) ──
+  const pendingTxCompletion = useTxCompletionStore(
+    (state) => state.pending.find((e) => e.conversationId === activeConversationId)
+  );
+  const [txCountdown, setTxCountdown] = useState<number | null>(null);
+  const txCountdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const txCountdownEventRef = useRef<TxCompletionEvent | null>(null);
+
+  // Start countdown when a new tx completion event appears
+  useEffect(() => {
+    if (!pendingTxCompletion) return;
+    if (isStreaming) return;
+    if (!activeConversationId) return;
+
+    txCountdownEventRef.current = pendingTxCompletion;
+    useTxCompletionStore.getState().consume(pendingTxCompletion.id);
+    setTxCountdown(3);
+  }, [pendingTxCompletion, isStreaming, activeConversationId]);
+
+  // Tick the countdown and send at 0
+  useEffect(() => {
+    if (txCountdown === null) return;
+    if (txCountdown <= 0) {
+      const event = txCountdownEventRef.current;
+      if (event && activeConversationId && !isStreaming) {
+        sendSilentContext(activeConversationId, {
+          type: 'tx_completion',
+          ...event,
+        });
+      }
+      txCountdownEventRef.current = null;
+      setTxCountdown(null);
+      return;
+    }
+    txCountdownTimerRef.current = setTimeout(() => {
+      setTxCountdown((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+    return () => {
+      if (txCountdownTimerRef.current) clearTimeout(txCountdownTimerRef.current);
+    };
+  }, [txCountdown, activeConversationId, isStreaming, sendSilentContext]);
+
+  const cancelTxCountdown = useCallback(() => {
+    if (txCountdownTimerRef.current) clearTimeout(txCountdownTimerRef.current);
+    txCountdownEventRef.current = null;
+    setTxCountdown(null);
+  }, []);
+
+  // ── Auto-send form completion silently ──
+  const pendingFormCompletion = useFormCompletionStore(
+    (state) => state.pending.find((e) => e.conversationId === activeConversationId)
+  );
+
+  useEffect(() => {
+    if (!pendingFormCompletion) return;
+    if (isStreaming) return;
+    if (!activeConversationId) return;
+    // If a tx completion countdown is running, defer — tx_completion has higher priority
+    if (txCountdown !== null) return;
+    // If a tx completion event is pending for this conversation, defer
+    if (useTxCompletionStore.getState().pending.some((e) => e.conversationId === activeConversationId)) return;
+
+    const event = pendingFormCompletion;
+    useFormCompletionStore.getState().consume(event.id);
+
+    sendSilentContext(activeConversationId, {
+      type: 'form_submission',
+      formId: event.formId,
+      values: event.values,
+    });
+  }, [pendingFormCompletion, isStreaming, activeConversationId, sendSilentContext, txCountdown]);
 
   const handleQuickAction = (prompt: string) => {
     if (isReadingSharedConversation) return;
@@ -1322,7 +1441,25 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
             </button>
           </div>
 
-          {!isReadingSharedConversation && !isEmpty && (
+          {txCountdown !== null && (
+            <div className="flex items-center justify-center gap-2 py-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <Loader2 className="size-3 animate-spin text-primary" />
+              <span className="text-xs text-muted-foreground">
+                {locale === 'zh'
+                  ? `AI 将在 ${txCountdown} 秒后自动继续…`
+                  : `AI auto-continuing in ${txCountdown}s…`}
+              </span>
+              <button
+                type="button"
+                onClick={cancelTxCountdown}
+                className="text-xs text-primary hover:underline"
+              >
+                {locale === 'zh' ? '取消' : 'Cancel'}
+              </button>
+            </div>
+          )}
+
+          {!isEmpty && (
             <SuggestedReplies
               messages={visibleMessages}
               isStreaming={isStreaming}
@@ -1361,7 +1498,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
         </div>
 
         {/* ── Mobile: floating button + bottom Sheet (< lg) ── */}
-        {hasCards && !isReadingSharedConversation && (
+        {hasCards && (
           <>
             <button
               type="button"

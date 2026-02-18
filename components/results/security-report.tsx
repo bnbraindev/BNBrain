@@ -39,6 +39,7 @@ export interface SecurityReportProps {
     riskScore: number;
     risks: string[];
   };
+  locale?: string;
 }
 
 function getRiskColors(riskLevel: 'safe' | 'warning' | 'danger') {
@@ -60,12 +61,15 @@ function getScoreColor(score: number) {
   return 'text-red-500';
 }
 
-export function SecurityReport({ data }: SecurityReportProps) {
+export function SecurityReport({ data, locale = 'en' }: SecurityReportProps) {
+  const zh = locale === 'zh';
   const riskColors = getRiskColors(data.riskLevel);
   const scoreColor = getScoreColor(data.riskScore);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const shareText = `BNBrain Security Report\nRisk: ${data.riskLevel.toUpperCase()} (Score: ${data.riskScore}/100)\nHoneypot: ${data.isHoneypot ? 'YES' : 'No'} | Mintable: ${data.isMintable ? 'YES' : 'No'}\nHolders: ${data.holderCount} | Risks: ${data.risks.length > 0 ? data.risks.join(', ') : 'None'}`;
+  const shareText = zh
+    ? `BNBrain 安全报告\n风险: ${data.riskLevel.toUpperCase()} (评分: ${data.riskScore}/100)\n蜜罐: ${data.isHoneypot ? '是' : '否'} | 可增发: ${data.isMintable ? '是' : '否'}\n持有者: ${data.holderCount} | 风险: ${data.risks.length > 0 ? data.risks.join(', ') : '无'}`
+    : `BNBrain Security Report\nRisk: ${data.riskLevel.toUpperCase()} (Score: ${data.riskScore}/100)\nHoneypot: ${data.isHoneypot ? 'YES' : 'No'} | Mintable: ${data.isMintable ? 'YES' : 'No'}\nHolders: ${data.holderCount} | Risks: ${data.risks.length > 0 ? data.risks.join(', ') : 'None'}`;
 
   return (
     <Card className="overflow-hidden" ref={cardRef}>
@@ -73,7 +77,7 @@ export function SecurityReport({ data }: SecurityReportProps) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <CardTitle className="flex items-center gap-2">
             <Shield className="size-5" style={{ color: BNB_YELLOW }} />
-            Security Report
+            {zh ? '安全报告' : 'Security Report'}
             <ShareButton cardRef={cardRef} shareText={shareText} />
           </CardTitle>
           <Badge
@@ -101,9 +105,9 @@ export function SecurityReport({ data }: SecurityReportProps) {
             {data.riskScore}
           </div>
           <div className="flex-1 text-center sm:text-left">
-            <p className="text-sm text-muted-foreground mb-1">Risk Score (0–100)</p>
+            <p className="text-sm text-muted-foreground mb-1">{zh ? '风险评分 (0–100)' : 'Risk Score (0–100)'}</p>
             <p className="text-lg font-medium">
-              Lower is better. This token scored {data.riskScore} points.
+              {zh ? `分数越低越好。该代币得分 ${data.riskScore} 分。` : `Lower is better. This token scored ${data.riskScore} points.`}
             </p>
           </div>
         </div>
@@ -111,24 +115,25 @@ export function SecurityReport({ data }: SecurityReportProps) {
         <Separator />
 
         <div>
-          <h4 className="text-sm font-medium mb-3">Security Checks</h4>
+          <h4 className="text-sm font-medium mb-3">{zh ? '安全检查' : 'Security Checks'}</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <CheckItem label="Honeypot" pass={!data.isHoneypot} passLabel="No" />
-            <CheckItem label="Mintable" pass={!data.isMintable} passLabel="No" />
-            <CheckItem label="Blacklist" pass={!data.isBlacklisted} passLabel="No" />
-            <CheckItem label="Open Source" pass={data.isOpenSource} passLabel="Yes" />
+            <CheckItem label={zh ? '蜜罐' : 'Honeypot'} pass={!data.isHoneypot} passLabel="No" zh={zh} />
+            <CheckItem label={zh ? '可增发' : 'Mintable'} pass={!data.isMintable} passLabel="No" zh={zh} />
+            <CheckItem label={zh ? '黑名单' : 'Blacklist'} pass={!data.isBlacklisted} passLabel="No" zh={zh} />
+            <CheckItem label={zh ? '开源' : 'Open Source'} pass={data.isOpenSource} passLabel="Yes" zh={zh} />
             <CheckItem
-              label="Proxy"
+              label={zh ? '代理' : 'Proxy'}
               pass={!data.isProxy}
               passLabel="No"
               useWarningIcon
+              zh={zh}
             />
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-              <span className="text-sm">Buy Tax</span>
+              <span className="text-sm">{zh ? '买入税' : 'Buy Tax'}</span>
               <span className="text-sm font-medium">{data.buyTax}</span>
             </div>
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-              <span className="text-sm">Sell Tax</span>
+              <span className="text-sm">{zh ? '卖出税' : 'Sell Tax'}</span>
               <span className="text-sm font-medium">{data.sellTax}</span>
             </div>
           </div>
@@ -137,20 +142,20 @@ export function SecurityReport({ data }: SecurityReportProps) {
         <Separator />
 
         <div>
-          <h4 className="text-sm font-medium mb-3">Holder Info</h4>
+          <h4 className="text-sm font-medium mb-3">{zh ? '持有者信息' : 'Holder Info'}</h4>
           <div className="flex flex-wrap gap-4 mb-4">
             <div className="rounded-lg border px-3 py-2">
-              <span className="text-xs text-muted-foreground">Total Holders</span>
+              <span className="text-xs text-muted-foreground">{zh ? '总持有者' : 'Total Holders'}</span>
               <p className="font-semibold">{data.holderCount.toLocaleString()}</p>
             </div>
             <div className="rounded-lg border px-3 py-2">
-              <span className="text-xs text-muted-foreground">LP Holders</span>
+              <span className="text-xs text-muted-foreground">{zh ? 'LP 持有者' : 'LP Holders'}</span>
               <p className="font-semibold">{data.lpHolderCount.toLocaleString()}</p>
             </div>
           </div>
           {data.holders.length > 0 ? (
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Top Holders</p>
+              <p className="text-xs text-muted-foreground">{zh ? '前十持有者' : 'Top Holders'}</p>
               <div className="rounded-lg border divide-y">
                 {data.holders.slice(0, 10).map((h, i) => (
                   <div
@@ -164,7 +169,7 @@ export function SecurityReport({ data }: SecurityReportProps) {
                       <span className="text-sm font-medium">{h.percent}</span>
                       {h.isContract && (
                         <Badge variant="secondary" className="text-xs">
-                          Contract
+                          {zh ? '合约' : 'Contract'}
                         </Badge>
                       )}
                     </div>
@@ -181,7 +186,7 @@ export function SecurityReport({ data }: SecurityReportProps) {
             <div>
               <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
                 <AlertTriangle className="size-4 text-amber-500" />
-                Identified Risks
+                {zh ? '已识别风险' : 'Identified Risks'}
               </h4>
               <div className="flex flex-wrap gap-2">
                 {data.risks.map((risk, i) => (
@@ -206,11 +211,11 @@ export function SecurityReport({ data }: SecurityReportProps) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Creator</p>
+            <p className="text-xs text-muted-foreground mb-1">{zh ? '创建者' : 'Creator'}</p>
             <p className="font-mono truncate">{shortenAddress(data.creatorAddress)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Owner</p>
+            <p className="text-xs text-muted-foreground mb-1">{zh ? '所有者' : 'Owner'}</p>
             <p className="font-mono truncate">{shortenAddress(data.ownerAddress)}</p>
           </div>
         </div>
@@ -224,13 +229,19 @@ function CheckItem({
   pass,
   passLabel,
   useWarningIcon,
+  zh = false,
 }: {
   label: string;
   pass: boolean;
   passLabel: 'Yes' | 'No';
   useWarningIcon?: boolean;
+  zh?: boolean;
 }) {
-  const displayText = pass ? passLabel : passLabel === 'Yes' ? 'No' : 'Yes';
+  const yesText = zh ? '是' : 'Yes';
+  const noText = zh ? '否' : 'No';
+  const displayText = pass
+    ? (passLabel === 'Yes' ? yesText : noText)
+    : (passLabel === 'Yes' ? noText : yesText);
   const icon = pass ? (
     <CheckCircle className="size-4 text-emerald-500" />
   ) : useWarningIcon ? (

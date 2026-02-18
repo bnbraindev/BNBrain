@@ -40,22 +40,23 @@ function formatTime(ts: string | null): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export function TransferHistoryCard({ data }: { data: TransferHistoryCardData }) {
+export function TransferHistoryCard({ data, locale = 'en' }: { data: TransferHistoryCardData; locale?: string }) {
+  const zh = locale === 'zh';
   const empty = !data.transfers || data.transfers.length === 0;
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <History className="size-4 text-primary" />
-          Token Transfers
+          {zh ? '代币转账' : 'Token Transfers'}
           {data.totalFound > 0 && (
-            <Badge variant="outline" className="ml-auto text-xs">{data.totalFound} found</Badge>
+            <Badge variant="outline" className="ml-auto text-xs">{data.totalFound} {zh ? '条记录' : 'found'}</Badge>
           )}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {empty ? (
-          <p className="text-sm text-muted-foreground text-center py-4">{data.message || 'No transfers found.'}</p>
+          <p className="text-sm text-muted-foreground text-center py-4">{data.message || (zh ? '未找到转账记录。' : 'No transfers found.')}</p>
         ) : (
           <div className="space-y-1">
             {data.transfers.map((t, i) => (
@@ -67,7 +68,7 @@ export function TransferHistoryCard({ data }: { data: TransferHistoryCardData })
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium">{formatAmount(t.amount, t.decimals)} {t.tokenSymbol}</span>
                     <span className="text-muted-foreground text-xs">
-                      {t.direction === 'in' ? 'from' : 'to'} {shortenAddr(t.direction === 'in' ? t.from : t.to)}
+                      {t.direction === 'in' ? (zh ? '从' : 'from') : (zh ? '到' : 'to')} {shortenAddr(t.direction === 'in' ? t.from : t.to)}
                     </span>
                   </div>
                   <p className="font-mono text-xs text-muted-foreground truncate">{shortenAddr(t.hash)}</p>

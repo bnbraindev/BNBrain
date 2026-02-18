@@ -20,13 +20,18 @@ function dedupeStoredMessagesById(stored: StoredMessage[]): StoredMessage[] {
 
 function toUIMessages(stored: StoredMessage[]): UIMessage[] {
   const deduped = dedupeStoredMessagesById(stored);
-  return deduped.map((message) => ({
-    id: message.id,
-    role: message.role,
-    parts: message.parts
-      ? (message.parts as UIMessage['parts'])
-      : [{ type: 'text' as const, text: message.content }],
-  }));
+  return deduped.map((message) => {
+    const uiMsg: UIMessage = {
+      id: message.id,
+      role: message.role,
+      parts: message.parts
+        ? (message.parts as UIMessage['parts'])
+        : [{ type: 'text' as const, text: message.content }],
+    };
+    // Carry through hidden flag so isSilentContextMessage can filter it
+    if (message.hidden) (uiMsg as UIMessage & { hidden?: boolean }).hidden = true;
+    return uiMsg;
+  });
 }
 
 export function toCachedUIMessages(stored: StoredMessage[]): UIMessage[] {

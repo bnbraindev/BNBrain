@@ -154,6 +154,30 @@ a,
   animation: message-in 0.2s ease-out;
 }
 
+/* Explicit spinner — belt-and-suspenders for animate-spin */
+@layer utilities {
+  @keyframes icon-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .icon-spin {
+    animation: icon-spin 1s linear infinite;
+  }
+}
+
+/* Bouncing dots for streaming indicator */
+@layer utilities {
+  @keyframes dot-bounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-5px); }
+  }
+
+  .dot-bounce {
+    animation: dot-bounce 1.4s ease-in-out infinite;
+  }
+}
+
 /* Pulse glow for active scanning — gold */
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 0 0 oklch(0.78 0.16 85 / 35%); }
@@ -312,5 +336,17 @@ a,
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Spinners and loading dots must always animate — they convey loading state */
+  .animate-spin,
+  .icon-spin {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .dot-bounce {
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
   }
 }

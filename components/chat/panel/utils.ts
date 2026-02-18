@@ -1,6 +1,27 @@
 import type { UIMessage } from 'ai';
 import type { StoredMessage } from '@/lib/stores/chat-store';
 
+/**
+ * Marker prefix for silent context trigger messages.
+ * These messages carry context to the AI but are never shown to the user.
+ */
+export const SILENT_CONTEXT_MARKER = '\u200B__ctx__\u200B';
+
+/** Check whether a UIMessage should be hidden from the UI. */
+export function isSilentContextMessage(m: UIMessage): boolean {
+  if (m.role === 'system') return true;
+  // hidden flag (set by server, persisted in DB)
+  if ((m as UIMessage & { hidden?: boolean }).hidden) return true;
+  // Fallback: MARKER check for live messages (before server persists the hidden flag)
+  if (m.role !== 'user') return false;
+  for (const part of m.parts) {
+    if (part.type === 'text' && (part as { text: string }).text.startsWith(SILENT_CONTEXT_MARKER)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 import {
   SYNC_QUEUE_RETRY_BASE_MS,
   SYNC_QUEUE_RETRY_MAX_MS,
@@ -18,7 +39,6 @@ export function parseEvmChainId(raw: unknown): number | undefined {
 }
 
 export function chainNameById(chainId: number): string {
-  if (chainId === 97) return 'BSC Testnet';
   if (chainId === 204) return 'opBNB';
   if (chainId === 56) return 'BSC';
   return `Chain ${chainId}`;
@@ -77,13 +97,16 @@ export function toStoredMessages(
     ) {
       return previous;
     }
-    return {
+    const hidden = (m as UIMessage & { hidden?: boolean }).hidden;
+    const stored: StoredMessage = {
       id: m.id,
       role: m.role as StoredMessage['role'],
       content: textParts,
       parts: m.parts as StoredMessage['parts'],
       createdAt: previous?.createdAt ?? Date.now(),
     };
+    if (hidden) stored.hidden = true;
+    return stored;
   });
 }
 

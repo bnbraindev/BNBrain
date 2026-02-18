@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
         serper?: { apiKey: string } | null;
         steel?: { apiKey: string; apiUrl?: string } | null;
         siwe?: { domain?: string; allowedChainIds?: string } | null;
-        rpc?: { url56?: string; url97?: string; url204?: string } | null;
+        rpc?: { url56?: string; url204?: string } | null;
       };
       skipModel?: boolean;
     };
@@ -159,10 +159,9 @@ export async function POST(request: NextRequest) {
     }
     let rpcChanged = false;
     if (services && 'rpc' in services) {
-      if (services.rpc?.url56 || services.rpc?.url97 || services.rpc?.url204) {
+      if (services.rpc?.url56 || services.rpc?.url204) {
         nextServices.rpc = {
           url56: services.rpc.url56?.trim() || undefined,
-          url97: services.rpc.url97?.trim() || undefined,
           url204: services.rpc.url204?.trim() || undefined,
         };
         rpcChanged = true;

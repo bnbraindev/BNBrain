@@ -120,7 +120,6 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
   // RPC URLs
   const [rpcUrl56, setRpcUrl56] = useState('');
-  const [rpcUrl97, setRpcUrl97] = useState('');
   const [rpcUrl204, setRpcUrl204] = useState('');
   const [rpcValidation, setRpcValidation] = useState<ValidationState>({
     status: 'idle',
@@ -332,7 +331,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           service: 'rpc',
-          config: { url56: rpcUrl56 || undefined, url97: rpcUrl97 || undefined, url204: rpcUrl204 || undefined },
+          config: { url56: rpcUrl56 || undefined, url204: rpcUrl204 || undefined },
         }),
       });
       const data = await res.json();
@@ -344,7 +343,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     } catch {
       setRpcValidation({ status: 'error', message: t.connectionError });
     }
-  }, [rpcUrl56, rpcUrl97, rpcUrl204, t]);
+  }, [rpcUrl56, rpcUrl204, t]);
 
   // ── Save & Complete ─────────────────────────────────────
 
@@ -391,10 +390,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           allowedChainIds: siweChainIds || undefined,
         };
       }
-      if (rpcUrl56 || rpcUrl97 || rpcUrl204) {
+      if (rpcUrl56 || rpcUrl204) {
         services.rpc = {
           url56: rpcUrl56 || undefined,
-          url97: rpcUrl97 || undefined,
           url204: rpcUrl204 || undefined,
         };
       }
@@ -436,7 +434,6 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     siweDomain,
     siweChainIds,
     rpcUrl56,
-    rpcUrl97,
     rpcUrl204,
     onComplete,
   ]);
@@ -1189,19 +1186,6 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-muted-foreground">BSC Testnet (Chain 97)</label>
-                        <input
-                          type="text"
-                          value={rpcUrl97}
-                          onChange={(e) => {
-                            setRpcUrl97(e.target.value);
-                            setRpcValidation({ status: 'idle', message: '' });
-                          }}
-                          placeholder="https://data-seed-prebsc-1-s1.binance.org:8545"
-                          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm"
-                        />
-                      </div>
-                      <div>
                         <label className="mb-1 block text-xs text-muted-foreground">opBNB (Chain 204)</label>
                         <input
                           type="text"
@@ -1218,7 +1202,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                         <Button
                           onClick={validateRpc}
                           disabled={
-                            (!rpcUrl56 && !rpcUrl97 && !rpcUrl204) ||
+                            (!rpcUrl56 && !rpcUrl204) ||
                             rpcValidation.status === 'testing'
                           }
                           variant="outline"
@@ -1331,7 +1315,7 @@ const en = {
   siweDesc:
     'Configure SIWE (Sign-In with Ethereum) wallet login domain and allowed chain IDs.',
   siweDomainPlaceholder: 'Domain, e.g. app.bnbrain.dev',
-  siweChainIdsPlaceholder: 'Chain IDs, e.g. 56,97,204',
+  siweChainIdsPlaceholder: 'Chain IDs, e.g. 56,204',
   rpcTitle: 'RPC Endpoints',
   rpcDesc:
     'Custom RPC endpoints for blockchain data queries. Leave empty to use public default nodes.',
@@ -1383,7 +1367,7 @@ const zh: typeof en = {
   siweDesc:
     '配置 SIWE（Sign-In with Ethereum）钱包登录的域名和允许的链 ID。',
   siweDomainPlaceholder: '域名，例如 app.bnbrain.dev',
-  siweChainIdsPlaceholder: '链 ID，例如 56,97,204',
+  siweChainIdsPlaceholder: '链 ID，例如 56,204',
   rpcTitle: 'RPC 节点',
   rpcDesc:
     '自定义 RPC 节点地址，用于区块链数据查询。留空将使用公共默认节点。',

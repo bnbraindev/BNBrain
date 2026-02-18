@@ -35,21 +35,18 @@ export function CardPanel({
   const panelEndRef = useRef<HTMLDivElement>(null);
   const prevCardCountRef = useRef(0);
 
-  // Auto-collapse logic: when cards change, compute which should be expanded
+  // Auto-collapse logic: only keep loading cards + latest completed card expanded.
+  // When a new card arrives, previous cards auto-collapse.
+  // Respects user manual toggles until the card set changes.
   useEffect(() => {
     if (cards.length === 0) return;
 
-    setExpandedIds(() => {
+    setExpandedIds((prev) => {
       const next = new Set<string>();
 
       // Loading cards always expanded
       for (const card of cards) {
         if (card.state === 'loading') next.add(card.id);
-      }
-
-      // Interactive tools always expanded
-      for (const card of cards) {
-        if (INTERACTIVE_TOOLS.has(card.toolName)) next.add(card.id);
       }
 
       // High-risk results always expanded
@@ -59,7 +56,7 @@ export function CardPanel({
         }
       }
 
-      // Latest completed card expanded
+      // Only the LATEST completed/error card is auto-expanded
       for (let i = cards.length - 1; i >= 0; i--) {
         if (cards[i].state === 'completed' || cards[i].state === 'error') {
           next.add(cards[i].id);
@@ -67,11 +64,16 @@ export function CardPanel({
         }
       }
 
-      // Preserve user manual toggles
+      // Preserve user manual toggles for cards that still exist
       for (const id of userToggledRef.current) {
         if (!cards.some((c) => c.id === id)) {
           userToggledRef.current.delete(id);
+          continue;
         }
+        // If user manually expanded a card, keep it expanded
+        if (prev.has(id)) next.add(id);
+        // If user manually collapsed a card, keep it collapsed
+        else next.delete(id);
       }
 
       return next;
@@ -92,8 +94,11 @@ export function CardPanel({
     userToggledRef.current.add(cardId);
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(cardId)) next.delete(cardId);
-      else next.add(cardId);
+      if (next.has(cardId)) {
+        next.delete(cardId);
+      } else {
+        next.add(cardId);
+      }
       return next;
     });
   }, []);
@@ -104,13 +109,12 @@ export function CardPanel({
   const anyExpanded = completedCards.some((c) => expandedIds.has(c.id));
 
   const toggleAll = useCallback(() => {
+    userToggledRef.current.clear();
     setExpandedIds((prev) => {
       const next = new Set(prev);
       if (anyExpanded) {
+        // Collapse ALL completed cards (including interactive)
         for (const c of completedCards) {
-          // Don't collapse interactive or high-risk
-          if (INTERACTIVE_TOOLS.has(c.toolName)) continue;
-          if (c.output && isHighRisk(c.output)) continue;
           next.delete(c.id);
         }
       } else {
@@ -126,7 +130,7 @@ export function CardPanel({
     !readOnly ? `${conversationId ?? 'local'}:${card.id}` : undefined;
 
   return (
-    <div className="flex h-full flex-col min-w-0">
+    <div className="flex h-full flex-col min-w-0 pt-11 sm:pt-12">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5 shrink-0">
         <BarChart3 className="size-4 text-primary" />
@@ -201,6 +205,7 @@ export function CardPanel({
                 <CompactCardView
                   card={card}
                   locale={locale}
+                  conversationId={conversationId ?? undefined}
                   onExpand={() => handleToggle(card.id)}
                 />
               </div>
@@ -225,7 +230,7 @@ export function CardPanel({
                     <button
                       type="button"
                       onClick={() => onCardClick(card.id)}
-                      title="Locate in chat"
+                      title={locale === 'zh' ? '定位到聊天' : 'Locate in chat'}
                       className="rounded p-1 text-muted-foreground/50 hover:bg-accent hover:text-foreground transition-colors"
                     >
                       <MessageSquare className="size-3" />
@@ -234,7 +239,7 @@ export function CardPanel({
                   <button
                     type="button"
                     onClick={() => handleToggle(card.id)}
-                    title="Collapse"
+                    title={locale === 'zh' ? '折叠' : 'Collapse'}
                     className="rounded p-1 text-muted-foreground/50 hover:bg-accent hover:text-foreground transition-colors"
                   >
                     <ChevronDown className="size-3" />
@@ -255,7 +260,8 @@ export function CardPanel({
                       card.output,
                       txStateKey(card),
                       conversationId ?? undefined,
-                      readOnly
+                      readOnly,
+                      locale
                     )
                   : null}
               </div>

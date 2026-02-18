@@ -17,7 +17,7 @@ export interface SetupServiceConfig {
   serper?: { apiKey: string };
   steel?: { apiKey: string; apiUrl?: string };
   siwe?: { domain?: string; allowedChainIds?: string };
-  rpc?: { url56?: string; url97?: string; url204?: string };
+  rpc?: { url56?: string; url204?: string };
 }
 
 export interface SetupConfig {
@@ -128,13 +128,18 @@ export async function isSetupCompleted(): Promise<boolean> {
 
 // ── Config resolution (DB → env vars) ────────────────────────
 
+/** API keys shorter than this are treated as placeholders and skipped. */
+const MIN_API_KEY_LENGTH = 10;
+
 export async function resolveGoPlusCredentials(): Promise<{
   appKey: string;
   appSecret: string;
 } | null> {
   const config = await getSetupConfig();
-  if (config.services.goplus?.appKey && config.services.goplus?.appSecret) {
-    return config.services.goplus;
+  const dbKey = config.services.goplus?.appKey?.trim();
+  const dbSecret = config.services.goplus?.appSecret?.trim();
+  if (dbKey && dbKey.length >= MIN_API_KEY_LENGTH && dbSecret && dbSecret.length >= MIN_API_KEY_LENGTH) {
+    return { appKey: dbKey, appSecret: dbSecret };
   }
   const appKey = process.env.GOPLUS_APP_KEY?.trim();
   const appSecret = process.env.GOPLUS_APP_SECRET?.trim();
@@ -144,24 +149,27 @@ export async function resolveGoPlusCredentials(): Promise<{
 
 export async function resolveBscScanApiKey(): Promise<string> {
   const config = await getSetupConfig();
-  if (config.services.bscscan?.apiKey) {
-    return config.services.bscscan.apiKey;
+  const dbKey = config.services.bscscan?.apiKey?.trim();
+  if (dbKey && dbKey.length >= MIN_API_KEY_LENGTH) {
+    return dbKey;
   }
   return process.env.BSCSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
 }
 
 export async function resolveNoderealApiKey(): Promise<string> {
   const config = await getSetupConfig();
-  if (config.services.nodereal?.apiKey) {
-    return config.services.nodereal.apiKey;
+  const dbKey = config.services.nodereal?.apiKey?.trim();
+  if (dbKey && dbKey.length >= MIN_API_KEY_LENGTH) {
+    return dbKey;
   }
   return process.env.NODEREAL_API_KEY ?? '';
 }
 
 export async function resolveSerperApiKey(): Promise<string> {
   const config = await getSetupConfig();
-  if (config.services.serper?.apiKey) {
-    return config.services.serper.apiKey;
+  const dbKey = config.services.serper?.apiKey?.trim();
+  if (dbKey && dbKey.length >= MIN_API_KEY_LENGTH) {
+    return dbKey;
   }
   return process.env.SERPER_API_KEY ?? '';
 }
@@ -172,9 +180,9 @@ export async function resolveSteelConfig(): Promise<{
 } | null> {
   const config = await getSetupConfig();
   const dbSteel = config.services.steel;
-  if (dbSteel?.apiKey) {
+  if (dbSteel?.apiKey?.trim() && dbSteel.apiKey.trim().length >= MIN_API_KEY_LENGTH) {
     return {
-      apiKey: dbSteel.apiKey,
+      apiKey: dbSteel.apiKey.trim(),
       apiUrl: dbSteel.apiUrl?.trim() || 'https://api.steel.dev',
     };
   }
@@ -206,20 +214,17 @@ export async function resolveSiweAllowedChainIds(): Promise<string | undefined> 
 
 const DEFAULT_RPC_URLS = {
   url56: 'https://bsc-dataseed.binance.org',
-  url97: 'https://bsc-testnet-dataseed.bnbchain.org',
   url204: 'https://opbnb-mainnet-rpc.bnbchain.org',
 };
 
 export async function resolveRpcUrls(): Promise<{
   url56: string;
-  url97: string;
   url204: string;
 }> {
   const config = await getSetupConfig();
   const dbRpc = config.services.rpc;
   return {
     url56: dbRpc?.url56?.trim() || process.env.RPC_URL_56 || DEFAULT_RPC_URLS.url56,
-    url97: dbRpc?.url97?.trim() || process.env.RPC_URL_97 || DEFAULT_RPC_URLS.url97,
     url204: dbRpc?.url204?.trim() || process.env.RPC_URL_204 || DEFAULT_RPC_URLS.url204,
   };
 }

@@ -1,11 +1,15 @@
-import type { RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import type { UIMessage } from 'ai';
 import { VList, type VListHandle } from 'virtua';
 
 import { Message } from '../message';
 import { InterruptedHint } from './interrupted-hint';
-import { ContinuationIndicator, StreamingIndicator } from './streaming-indicator';
+import { StreamingIndicator } from './streaming-indicator';
+
+/** Keep the indicator visible for a grace period after isStreaming goes false,
+ *  so it doesn't flicker during multi-tool responses (streaming→ready→submitted→streaming). */
+const HIDE_DELAY_MS = 600;
 
 interface MessageStreamViewProps {
   locale: 'en' | 'zh';
@@ -50,12 +54,33 @@ export function MessageStreamView({
   );
   const shouldShift = isLoadingOlderMessages && safeRenderedMessages.length > 0;
 
-  // Show pulsing dots when streaming and the assistant message hasn't appeared yet
   const lastIsAssistant =
     safeRenderedMessages.length > 0 &&
     safeRenderedMessages[safeRenderedMessages.length - 1].role === 'assistant';
-  const showStreamingIndicator = isStreaming && !lastIsAssistant;
-  const showContinuationIndicator = isStreaming && lastIsAssistant;
+
+  // Debounced visibility: stays true for HIDE_DELAY_MS after isStreaming goes false
+  const [showIndicator, setShowIndicator] = useState(isStreaming);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (isStreaming) {
+      // Immediately show when streaming starts
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+      setShowIndicator(true);
+    } else {
+      // Delay hiding to absorb tool-call flickers
+      hideTimerRef.current = setTimeout(() => {
+        setShowIndicator(false);
+        hideTimerRef.current = null;
+      }, HIDE_DELAY_MS);
+    }
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [isStreaming]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3" aria-busy={isLoadingOlderMessages}>
@@ -78,17 +103,10 @@ export function MessageStreamView({
           </div>
         ))}
 
-        {/* Streaming: pulsing dots until the assistant message appears */}
-        {showStreamingIndicator && (
-          <div key="__streaming" className="mx-auto w-full max-w-3xl px-2 pb-5 sm:px-3 sm:pb-7">
-            <StreamingIndicator />
-          </div>
-        )}
-
-        {/* Continuation: small dots after assistant message while still streaming */}
-        {showContinuationIndicator && (
-          <div key="__continuing" className="mx-auto w-full max-w-3xl px-2 pb-3 sm:px-3">
-            <ContinuationIndicator />
+        {/* Unified streaming indicator — debounced to prevent flicker during tool calls */}
+        {showIndicator && (
+          <div key="__streaming" className="mx-auto w-full max-w-3xl px-2 pb-3 sm:px-3">
+            <StreamingIndicator withHeader={!lastIsAssistant} />
           </div>
         )}
 

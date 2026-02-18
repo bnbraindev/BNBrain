@@ -1,5 +1,5 @@
 import type { UIMessageChunk } from 'ai';
-import { createChatStreamResult, toModelMessages, toStoredMessages } from '@/lib/server/chat-runtime';
+import { createChatStreamResult, replaceMarkerWithSilentContext, toModelMessages, toStoredMessages } from '@/lib/server/chat-runtime';
 import {
   appendChatRunEvent,
   batchAppendChatRunEvents,
@@ -278,7 +278,21 @@ async function processChatRun(run: ChatRunRecord): Promise<void> {
     return;
   }
 
-  const modelMessages = toModelMessages(run.requestMessages);
+  // If silentContext is present, replace __ctx__ MARKER messages with readable text
+  // so the AI sees a proper user turn (e.g. "[Transaction completed] Contract deployed...").
+  // The original MARKER is preserved in run.requestMessages (DB) so the frontend can hide it.
+  const silentCtx = run.userContext?.silentContext as Record<string, unknown> | undefined;
+  if (silentCtx) {
+    console.log(`[chat run worker] Run ${run.id} has silentContext: type=${silentCtx.type}, mode=${silentCtx.mode ?? 'N/A'}, hash=${(silentCtx.hash as string)?.slice(0, 10) ?? 'N/A'}`);
+  }
+  const messagesForModel = silentCtx
+    ? replaceMarkerWithSilentContext(run.requestMessages, silentCtx)
+    : run.requestMessages;
+  const modelMessages = toModelMessages(messagesForModel);
+  if (silentCtx) {
+    const lastMsg = modelMessages[modelMessages.length - 1];
+    console.log(`[chat run worker] Run ${run.id} last model message role=${lastMsg?.role}, content preview: ${typeof lastMsg?.content === 'string' ? lastMsg.content.slice(0, 120) : 'N/A'}`);
+  }
   if (modelMessages.length === 0) {
     const errorText = 'messages must include at least one text message';
     await appendChatRunEvent(run.id, {

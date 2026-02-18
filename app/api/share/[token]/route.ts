@@ -33,6 +33,12 @@ export async function GET(
     }
     // Strip sensitive fields before returning to public viewers
     const { walletAddress, shareToken, forkedFromShareToken, contextFingerprint, contextInjectedAt, contextInjectionStatus, ...safeConversation } = conversation;
+    // Filter out hidden messages (auto-injected context not meant for display)
+    if (safeConversation.messages) {
+      safeConversation.messages = safeConversation.messages.filter(
+        (m: { hidden?: boolean }) => !m.hidden
+      );
+    }
     return Response.json({ conversation: safeConversation });
   } catch (error) {
     console.error('[share GET]', error);

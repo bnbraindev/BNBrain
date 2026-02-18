@@ -43,7 +43,8 @@ function shortenAddress(addr: string) {
   return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
 }
 
-export function TokenRadarCard({ data }: { data: RadarData }) {
+export function TokenRadarCard({ data, locale = 'en' }: { data: RadarData; locale?: string }) {
+  const zh = locale === 'zh';
   if (data.error) {
     return (
       <Card className="border-destructive/50 bg-destructive/5">
@@ -61,7 +62,7 @@ export function TokenRadarCard({ data }: { data: RadarData }) {
     return (
       <Card>
         <CardContent className="pt-6 text-center text-sm text-muted-foreground">
-          No new BSC tokens found.
+          {zh ? '未发现新 BSC 代币。' : 'No new BSC tokens found.'}
         </CardContent>
       </Card>
     );
@@ -72,7 +73,7 @@ export function TokenRadarCard({ data }: { data: RadarData }) {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <span className="text-[#F0B90B]">New Token Radar</span>
+            <span className="text-[#F0B90B]">{zh ? '新币雷达' : 'New Token Radar'}</span>
             <Badge variant="outline" className="text-xs">BSC</Badge>
           </CardTitle>
           {data.scannedAt && (
@@ -120,7 +121,7 @@ export function TokenRadarCard({ data }: { data: RadarData }) {
             {/* Right: safety indicators */}
             <div className="flex items-center gap-1.5 shrink-0">
               {token.isHoneypot && (
-                <Badge variant="destructive" className="text-xs h-5">Honeypot</Badge>
+                <Badge variant="destructive" className="text-xs h-5">{zh ? '蜜罐' : 'Honeypot'}</Badge>
               )}
               {token.isMintable && (
                 <span title="Mintable"><AlertTriangle className="size-3.5 text-amber-500" /></span>
@@ -144,7 +145,7 @@ export function TokenRadarCard({ data }: { data: RadarData }) {
         ))}
 
         <div className="text-xs text-muted-foreground/50 text-center pt-1">
-          Liq: {data.tokens.filter(t => t.liquidity >= 1000).length}/{data.tokens.length} tokens with $1K+ liquidity
+          Liq: {data.tokens.filter(t => t.liquidity >= 1000).length}/{data.tokens.length} {zh ? '个代币流动性 ≥$1K' : 'tokens with $1K+ liquidity'}
         </div>
       </CardContent>
     </Card>

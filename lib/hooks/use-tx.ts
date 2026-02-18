@@ -10,6 +10,7 @@ import {
 import { normalizeWalletError } from '@/lib/utils/wallet-error';
 import { useToast } from '@/components/ui/toast';
 import { useChatStore } from '@/lib/stores/chat-store';
+import { useTxStatusStore } from '@/lib/stores/tx-status-store';
 import type { PersistedTxRecord, TxStateSyncPayload, TxStatus } from '@/lib/tx/state';
 
 export type { TxStatus } from '@/lib/tx/state';
@@ -123,6 +124,8 @@ export function useTransactionExecutor(options?: UseTransactionExecutorOptions) 
   useEffect(() => {
     if (!cacheKey) return;
     txStateCache.set(cacheKey, state);
+    // Broadcast to lightweight store so inline badges can react
+    useTxStatusStore.getState().set(cacheKey, state.status);
   }, [cacheKey, state]);
 
   useEffect(() => {
@@ -167,6 +170,10 @@ export function useTransactionExecutor(options?: UseTransactionExecutorOptions) 
           // On initial sync, suppress toast for terminal states already persisted
           if (initialSyncRef.current) {
             lastStatusRef.current = remoteState.status;
+          }
+          // Broadcast restored state to badge store
+          if (cacheKey) {
+            useTxStatusStore.getState().set(cacheKey, remoteState.status);
           }
           return remoteState;
         });

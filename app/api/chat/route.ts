@@ -85,7 +85,32 @@ export async function POST(req: Request) {
     );
   }
 
-  const messages = toModelMessages(parsed.data.messages);
+  // When silentContext is present:
+  // 1. Mark the MARKER message with hidden:true (frontend/share API will filter it out)
+  // 2. Merge silentContext into userContext (worker replaces MARKER → readable text for AI)
+  let requestMessages = parsed.data.messages as unknown[];
+  let userContext = parsed.data.userContext;
+  if (parsed.data.silentContext != null) {
+    const _sc = parsed.data.silentContext as Record<string, unknown>;
+    console.log(`[chat route] silentContext received: type=${_sc.type}, mode=${_sc.mode ?? 'N/A'}, chatId=${parsed.data.id ?? 'N/A'}, hasExtraContext=${Boolean(_sc.extraContext)}`);
+    const ctx = parsed.data.silentContext as Record<string, unknown>;
+    userContext = { ...(userContext ?? {}), silentContext: ctx };
+    requestMessages = requestMessages
+      .filter((msg) => (msg as { role?: string }).role !== 'system')
+      .map((msg) => {
+        const m = msg as { role?: string; content?: string; parts?: Array<{ type?: string; text?: string }> };
+        if (m.role !== 'user') return msg;
+        const text = typeof m.content === 'string' ? m.content : '';
+        const isMarker =
+          text.includes('__ctx__') ||
+          (Array.isArray(m.parts) && m.parts.some(
+            (p) => p?.type === 'text' && typeof p.text === 'string' && p.text.includes('__ctx__')
+          ));
+        return isMarker ? { ...m, hidden: true } : msg;
+      });
+  }
+
+  const messages = toModelMessages(requestMessages);
   if (messages.length === 0) {
     return apiErrorResponse(
       {
@@ -145,8 +170,8 @@ export async function POST(req: Request) {
         owner: ownerValidation.data,
         trigger,
         regenerateMessageId,
-        requestMessages: parsed.data.messages,
-        userContext: parsed.data.userContext,
+        requestMessages,
+        userContext,
       }));
 
     return createUIMessageStreamResponse({

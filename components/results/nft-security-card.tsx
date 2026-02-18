@@ -17,7 +17,8 @@ export interface NftSecurityCardData {
   risks: string[];
 }
 
-export function NftSecurityCard({ data }: { data: NftSecurityCardData }) {
+export function NftSecurityCard({ data, locale = 'en' }: { data: NftSecurityCardData; locale?: string }) {
+  const zh = locale === 'zh';
   const danger = data.riskLevel === 'danger';
   const warn = data.riskLevel === 'warning';
   const borderColor = danger ? 'border-red-500/30 bg-red-500/5' : warn ? 'border-amber-500/30 bg-amber-500/5' : 'border-emerald-500/30 bg-emerald-500/5';
@@ -37,23 +38,23 @@ export function NftSecurityCard({ data }: { data: NftSecurityCardData }) {
       <CardContent className="space-y-3">
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div className="rounded-lg border px-2.5 py-2 text-center">
-            <p className="text-muted-foreground text-xs">Standard</p>
-            <p className="font-medium">{data.nftErc || 'Unknown'}</p>
+            <p className="text-muted-foreground text-xs">{zh ? '标准' : 'Standard'}</p>
+            <p className="font-medium">{data.nftErc || (zh ? '未知' : 'Unknown')}</p>
           </div>
           <div className="rounded-lg border px-2.5 py-2 text-center">
-            <p className="text-muted-foreground text-xs">Holders</p>
+            <p className="text-muted-foreground text-xs">{zh ? '持有者' : 'Holders'}</p>
             <p className="font-medium">{data.ownerNumber.toLocaleString()}</p>
           </div>
           <div className="rounded-lg border px-2.5 py-2 text-center">
-            <p className="text-muted-foreground text-xs">Items</p>
+            <p className="text-muted-foreground text-xs">{zh ? '数量' : 'Items'}</p>
             <p className="font-medium">{data.totalItems.toLocaleString()}</p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          {data.isOpenSource && <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-500">Open Source</Badge>}
-          {data.isTrustList && <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-500">Trusted</Badge>}
-          {data.isMalicious && <Badge variant="outline" className="text-xs border-red-500/30 text-red-500">Malicious</Badge>}
+          {data.isOpenSource && <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-500">{zh ? '开源' : 'Open Source'}</Badge>}
+          {data.isTrustList && <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-500">{zh ? '已信任' : 'Trusted'}</Badge>}
+          {data.isMalicious && <Badge variant="outline" className="text-xs border-red-500/30 text-red-500">{zh ? '恶意' : 'Malicious'}</Badge>}
         </div>
 
         {data.risks.length > 0 && (
@@ -68,7 +69,7 @@ export function NftSecurityCard({ data }: { data: NftSecurityCardData }) {
         )}
         {data.risks.length === 0 && (
           <div className="flex items-center gap-1.5 text-xs text-emerald-400">
-            <ShieldCheck className="size-3.5" /> No risks detected
+            <ShieldCheck className="size-3.5" /> {zh ? '未检测到风险' : 'No risks detected'}
           </div>
         )}
       </CardContent>

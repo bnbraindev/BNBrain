@@ -28,9 +28,11 @@ export interface ApprovalListProps {
     }>;
     warning: string | null;
   };
+  locale?: string;
 }
 
-export function ApprovalList({ data }: ApprovalListProps) {
+export function ApprovalList({ data, locale = 'en' }: ApprovalListProps) {
+  const zh = locale === 'zh';
   const { totalApprovals, approvals, warning } = data;
   const isEmpty = !approvals || approvals.length === 0;
 
@@ -40,7 +42,7 @@ export function ApprovalList({ data }: ApprovalListProps) {
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="size-5" style={{ color: BNB_YELLOW }} />
-            Token Approvals
+            {zh ? '代币授权' : 'Token Approvals'}
           </CardTitle>
           {!isEmpty && (
             <Badge variant="secondary">{totalApprovals}</Badge>
@@ -57,7 +59,7 @@ export function ApprovalList({ data }: ApprovalListProps) {
         {isEmpty ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <CheckCircle className="size-10 text-emerald-500" />
-            <p className="text-sm text-muted-foreground">No approvals found</p>
+            <p className="text-sm text-muted-foreground">{zh ? '未发现授权' : 'No approvals found'}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -83,7 +85,7 @@ export function ApprovalList({ data }: ApprovalListProps) {
                   size="sm"
                   className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-400 shrink-0"
                 >
-                  Revoke
+                  {zh ? '撤销' : 'Revoke'}
                 </Button>
               </div>
             ))}

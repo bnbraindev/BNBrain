@@ -30,13 +30,11 @@ export const WETH_ABI = parseAbi([
 // BSC explorer URLs by chainId
 export const EXPLORER_URLS: Record<number, string> = {
   56: 'https://bscscan.com',
-  97: 'https://testnet.bscscan.com',
-  204: 'https://opbnb-mainnet.bscscan.com',
+  204: 'https://opbnb.bscscan.com',
 };
 
 // Default slippage tolerance (e.g., 1 = 1%)
 export const DEFAULT_SLIPPAGE_BPS = 100; // 1%
 
 export const BSC_CHAIN_ID = 56;
-export const BSC_TESTNET_CHAIN_ID = 97;
 export const OPBNB_CHAIN_ID = 204;

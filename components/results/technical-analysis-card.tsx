@@ -47,7 +47,8 @@ const SIGNAL_STYLES = {
   neutral: { bg: 'bg-zinc-500/15', text: 'text-zinc-400', label: 'Neutral' },
 } as const;
 
-export function TechnicalAnalysisCard({ data }: { data: TechnicalAnalysisCardData }) {
+export function TechnicalAnalysisCard({ data, locale = 'en' }: { data: TechnicalAnalysisCardData; locale?: string }) {
+  const zh = locale === 'zh';
   if (data.error) {
     return (
       <Card className="border-destructive/40">
@@ -66,20 +67,20 @@ export function TechnicalAnalysisCard({ data }: { data: TechnicalAnalysisCardDat
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Activity className="size-4 text-primary" />
-          Technical Analysis
+          {zh ? '技术分析' : 'Technical Analysis'}
           <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
             {data.symbol}
           </span>
           <span className="text-xs text-muted-foreground">{data.interval}</span>
           <span className={`ml-auto rounded-full px-2.5 py-0.5 text-xs font-semibold ${signalStyle.bg} ${signalStyle.text}`}>
-            {signalStyle.label}
+            {zh ? ({ bullish: '看涨', bearish: '看跌', neutral: '中性' } as const)[data.overallSignal] : signalStyle.label}
           </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Current price */}
         <div className="text-center">
-          <p className="text-xs text-muted-foreground">Current Price</p>
+          <p className="text-xs text-muted-foreground">{zh ? '当前价格' : 'Current Price'}</p>
           <p className="text-xl font-bold tabular-nums">${fmtPrice(data.currentPrice)}</p>
         </div>
 
@@ -88,6 +89,7 @@ export function TechnicalAnalysisCard({ data }: { data: TechnicalAnalysisCardDat
           {/* RSI */}
           {indicators.rsi !== null && (
             <IndicatorCell
+              locale={locale}
               label="RSI (14)"
               value={indicators.rsi.toFixed(2)}
               status={indicators.rsi > 70 ? 'overbought' : indicators.rsi < 30 ? 'oversold' : 'normal'}
@@ -104,11 +106,11 @@ export function TechnicalAnalysisCard({ data }: { data: TechnicalAnalysisCardDat
                   <span className="font-medium">{indicators.macd.MACD}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Signal</span>
+                  <span className="text-muted-foreground">{zh ? '信号线' : 'Signal'}</span>
                   <span className="font-medium">{indicators.macd.signal}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Histogram</span>
+                  <span className="text-muted-foreground">{zh ? '柱状图' : 'Histogram'}</span>
                   <span className={`font-medium ${indicators.macd.histogram >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {indicators.macd.histogram}
                   </span>
@@ -120,7 +122,7 @@ export function TechnicalAnalysisCard({ data }: { data: TechnicalAnalysisCardDat
           {/* Moving Averages */}
           {(indicators.ma20 !== null || indicators.ma50 !== null) && (
             <div className="rounded-lg border px-3 py-2">
-              <p className="text-xs text-muted-foreground mb-1">Moving Averages</p>
+              <p className="text-xs text-muted-foreground mb-1">{zh ? '移动均线' : 'Moving Averages'}</p>
               <div className="space-y-0.5 text-xs tabular-nums">
                 {indicators.ma20 !== null && (
                   <div className="flex justify-between">
@@ -136,9 +138,9 @@ export function TechnicalAnalysisCard({ data }: { data: TechnicalAnalysisCardDat
                 )}
                 {indicators.ma20 !== null && indicators.ma50 !== null && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Cross</span>
+                    <span className="text-muted-foreground">{zh ? '交叉' : 'Cross'}</span>
                     <span className={`font-medium ${indicators.ma20 > indicators.ma50 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {indicators.ma20 > indicators.ma50 ? 'Golden' : 'Death'}
+                      {indicators.ma20 > indicators.ma50 ? (zh ? '金叉' : 'Golden') : (zh ? '死叉' : 'Death')}
                     </span>
                   </div>
                 )}
@@ -149,18 +151,18 @@ export function TechnicalAnalysisCard({ data }: { data: TechnicalAnalysisCardDat
           {/* Bollinger Bands */}
           {indicators.bollingerBands && (
             <div className="rounded-lg border px-3 py-2">
-              <p className="text-xs text-muted-foreground mb-1">Bollinger Bands</p>
+              <p className="text-xs text-muted-foreground mb-1">{zh ? '布林带' : 'Bollinger Bands'}</p>
               <div className="space-y-0.5 text-xs tabular-nums">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Upper</span>
+                  <span className="text-muted-foreground">{zh ? '上轨' : 'Upper'}</span>
                   <span className="font-medium">{fmtPrice(indicators.bollingerBands.upper)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Middle</span>
+                  <span className="text-muted-foreground">{zh ? '中轨' : 'Middle'}</span>
                   <span className="font-medium">{fmtPrice(indicators.bollingerBands.middle)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Lower</span>
+                  <span className="text-muted-foreground">{zh ? '下轨' : 'Lower'}</span>
                   <span className="font-medium">{fmtPrice(indicators.bollingerBands.lower)}</span>
                 </div>
               </div>
@@ -171,7 +173,7 @@ export function TechnicalAnalysisCard({ data }: { data: TechnicalAnalysisCardDat
         {/* Signals */}
         {data.signals.length > 0 && (
           <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">Signals</p>
+            <p className="text-xs font-medium text-muted-foreground">{zh ? '信号' : 'Signals'}</p>
             {data.signals.map((signal, i) => {
               const isBullish = signal.includes('bullish');
               const isBearish = signal.includes('bearish');
@@ -190,11 +192,12 @@ export function TechnicalAnalysisCard({ data }: { data: TechnicalAnalysisCardDat
   );
 }
 
-function IndicatorCell({ label, value, status }: { label: string; value: string; status: 'overbought' | 'oversold' | 'normal' }) {
+function IndicatorCell({ label, value, status, locale = 'en' }: { label: string; value: string; status: 'overbought' | 'oversold' | 'normal'; locale?: string }) {
+  const zh = locale === 'zh';
   const statusStyles = {
-    overbought: { border: 'border-red-500/30', bg: 'bg-red-500/5', text: 'text-red-400', badge: 'Overbought' },
-    oversold: { border: 'border-emerald-500/30', bg: 'bg-emerald-500/5', text: 'text-emerald-400', badge: 'Oversold' },
-    normal: { border: 'border-border', bg: '', text: 'text-foreground', badge: 'Normal' },
+    overbought: { border: 'border-red-500/30', bg: 'bg-red-500/5', text: 'text-red-400', badge: zh ? '超买' : 'Overbought' },
+    oversold: { border: 'border-emerald-500/30', bg: 'bg-emerald-500/5', text: 'text-emerald-400', badge: zh ? '超卖' : 'Oversold' },
+    normal: { border: 'border-border', bg: '', text: 'text-foreground', badge: zh ? '正常' : 'Normal' },
   };
   const s = statusStyles[status];
 

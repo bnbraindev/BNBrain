@@ -536,9 +536,12 @@ export async function verifyContractSource(
     ? `Contract.sol:${input.contractName}`
     : input.contractName;
 
+  const apiKey = await getApiKey();
+
+  // Etherscan V2 requires chainid + apikey in the URL query string for POST endpoints
+  const v2Url = `${ETHERSCAN_V2_BASE}?chainid=${chainId}&apikey=${encodeURIComponent(apiKey)}`;
+
   const formParams = new URLSearchParams({
-    chainid: String(chainId),
-    apikey: await getApiKey(),
     module: 'contract',
     action: 'verifysourcecode',
     contractaddress: input.address,
@@ -556,7 +559,7 @@ export async function verifyContractSource(
   try {
     const data = await withDataSource('etherscan-v2', () =>
       serviceFetch<EtherscanV2Response<string>>(
-        ETHERSCAN_V2_BASE,
+        v2Url,
         {
           service: SERVICE,
           timeoutMs: 30_000,
@@ -567,11 +570,16 @@ export async function verifyContractSource(
       )
     );
     if (data.status === '1' && data.result) {
+      console.log(`[verifyContract] Submit success for ${input.address} on chain ${chainId}, GUID: ${data.result}`);
       return { guid: data.result };
     }
-    return { error: String(data.result || data.message || 'Unknown verification error') };
+    const errMsg = String(data.result || data.message || 'Unknown verification error');
+    console.error(`[verifyContract] Submit failed for ${input.address} on chain ${chainId}: ${errMsg}`);
+    return { error: errMsg };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Verification request failed' };
+    const errMsg = err instanceof Error ? err.message : 'Verification request failed';
+    console.error(`[verifyContract] Submit exception for ${input.address} on chain ${chainId}: ${errMsg}`);
+    return { error: errMsg };
   }
 }
 
@@ -603,7 +611,7 @@ export async function checkVerificationStatus(
     );
 
     const result = (data.result ?? '').toLowerCase();
-    if (result.includes('pass')) {
+    if (result.includes('pass') || result.includes('already verified')) {
       return { status: 'pass', message: data.result ?? 'Verified' };
     }
     if (result.includes('pending') || result.includes('queue')) {

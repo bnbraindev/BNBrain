@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { Send, Wallet, Loader2, CheckCircle, ExternalLink, XCircle, AlertCircle } from 'lucide-react';
 import {
   Card,
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useTransactionExecutor } from '@/lib/hooks/use-tx';
 import { useAccount } from 'wagmi';
 import { EXPLORER_URLS } from '@/lib/utils/constants';
+import { useTxCompletionStore } from '@/lib/stores/tx-completion-store';
 
 const BNB_YELLOW = '#F0B90B';
 
@@ -32,6 +34,7 @@ export interface TransactionPreviewProps {
   txStateKey?: string;
   conversationId?: string;
   readOnly?: boolean;
+  locale?: string;
 }
 
 export function TransactionPreview({
@@ -39,7 +42,9 @@ export function TransactionPreview({
   txStateKey,
   conversationId,
   readOnly,
+  locale = 'en',
 }: TransactionPreviewProps) {
+  const zh = locale === 'zh';
   const { isConnected } = useAccount();
   const chainId = data.chainId ?? 56;
   const tx = useTransactionExecutor({
@@ -55,11 +60,29 @@ export function TransactionPreview({
   });
   const explorerBase = EXPLORER_URLS[chainId] ?? EXPLORER_URLS[56];
 
+  // Push tx completion event when status transitions to 'success'
+  const prevStatusRef = useRef(tx.status);
+  useEffect(() => {
+    const wasTerminal = ['success', 'error', 'cancelled'].includes(prevStatusRef.current);
+    prevStatusRef.current = tx.status;
+    if (wasTerminal) return;
+    if (tx.status !== 'success' || !tx.hash) return;
+    if (!conversationId) return;
+
+    useTxCompletionStore.getState().push({
+      conversationId,
+      toolName: 'buildTransfer',
+      mode: data.type,
+      hash: tx.hash,
+      chainId,
+    });
+  }, [tx.status, tx.hash, conversationId, data.type, chainId]);
+
   if (data.error) {
     return (
       <Card className="border-destructive/50 bg-destructive/5">
         <CardContent className="pt-6">
-          <p className="font-medium text-destructive">Transfer Error</p>
+          <p className="font-medium text-destructive">{zh ? '转账错误' : 'Transfer Error'}</p>
           <p className="text-sm text-muted-foreground mt-1">{data.error}</p>
         </CardContent>
       </Card>
@@ -88,7 +111,7 @@ export function TransactionPreview({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <Send className="size-5" style={{ color: BNB_YELLOW }} />
-          Transaction Preview
+          {zh ? '交易预览' : 'Transaction Preview'}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -96,12 +119,12 @@ export function TransactionPreview({
 
         <div className="rounded-lg border bg-muted/30 px-4 py-3 space-y-2">
           <div className="flex justify-between items-center">
-            <span className="text-xs text-muted-foreground">To</span>
+            <span className="text-xs text-muted-foreground">{zh ? '接收方' : 'To'}</span>
             <span className="font-mono text-sm">{shortenAddress(data.to)}</span>
           </div>
           {data.type === 'native_transfer' && data.value && (
             <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Amount</span>
+              <span className="text-xs text-muted-foreground">{zh ? '金额' : 'Amount'}</span>
               <span className="font-medium">{data.value} wei</span>
             </div>
           )}
@@ -112,7 +135,7 @@ export function TransactionPreview({
           <div className="flex items-center gap-3 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-3">
             <CheckCircle className="size-5 text-emerald-500 shrink-0" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-emerald-400">Transaction Confirmed</p>
+              <p className="text-sm font-medium text-emerald-400">{zh ? '交易已确认' : 'Transaction Confirmed'}</p>
               <a
                 href={`${explorerBase}/tx/${tx.hash}`}
                 target="_blank"
@@ -130,12 +153,12 @@ export function TransactionPreview({
           <div className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
             <XCircle className="size-5 text-destructive shrink-0" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-destructive">Transaction Failed</p>
+              <p className="text-sm font-medium text-destructive">{zh ? '交易失败' : 'Transaction Failed'}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{tx.error}</p>
               {tx.errorDetails ? (
                 <details className="mt-1.5">
                   <summary className="cursor-pointer text-xs text-muted-foreground/80">
-                    Technical details
+                    {zh ? '技术详情' : 'Technical details'}
                   </summary>
                   <p className="mt-1 text-xs text-muted-foreground break-all whitespace-pre-wrap">
                     {tx.errorDetails}
@@ -150,9 +173,9 @@ export function TransactionPreview({
           <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
             <AlertCircle className="size-5 text-amber-400 shrink-0" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-amber-300">Transaction Canceled</p>
+              <p className="text-sm font-medium text-amber-300">{zh ? '交易已取消' : 'Transaction Canceled'}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                No transaction was sent. You can review details and try again.
+                {zh ? '未发送交易。你可以检查详情后重试。' : 'No transaction was sent. You can review details and try again.'}
               </p>
             </div>
           </div>
@@ -160,9 +183,9 @@ export function TransactionPreview({
 
         {tx.status === 'pending' && (
           <div className="flex items-center gap-3 rounded-lg border border-[#F0B90B]/50 bg-[#F0B90B]/10 px-4 py-3">
-            <Loader2 className="size-5 animate-spin text-[#F0B90B] shrink-0" />
+            <Loader2 className="size-5 animate-spin icon-spin text-[#F0B90B] shrink-0" />
             <div>
-              <p className="text-sm font-medium">Waiting for confirmation…</p>
+              <p className="text-sm font-medium">{zh ? '等待确认…' : 'Waiting for confirmation…'}</p>
               {tx.hash && (
                 <a
                   href={`${explorerBase}/tx/${tx.hash}`}
@@ -183,7 +206,7 @@ export function TransactionPreview({
           <>
             {!isConnected ? (
               <p className="text-sm text-muted-foreground text-center py-2">
-                Connect your wallet first to sign this transaction
+                {zh ? '请先连接钱包以签署此交易' : 'Connect your wallet first to sign this transaction'}
               </p>
             ) : (
               <Button
@@ -192,7 +215,7 @@ export function TransactionPreview({
                 onClick={handleConfirm}
               >
                 <Wallet className="size-4 mr-2" />
-                Sign & Send
+                {zh ? '签名并发送' : 'Sign & Send'}
               </Button>
             )}
           </>
@@ -200,14 +223,14 @@ export function TransactionPreview({
 
         {!readOnly && tx.status === 'confirming' && (
           <Button className="w-full font-medium" disabled>
-            <Loader2 className="size-4 mr-2 animate-spin" />
-            Confirm in Wallet…
+            <Loader2 className="size-4 mr-2 animate-spin icon-spin" />
+            {zh ? '请在钱包中确认…' : 'Confirm in Wallet…'}
           </Button>
         )}
 
         {!readOnly && (tx.status === 'error' || tx.status === 'success' || tx.status === 'cancelled') && (
           <Button variant="outline" className="w-full" onClick={tx.reset}>
-            {tx.status === 'success' ? 'New Transaction' : 'Try Again'}
+            {tx.status === 'success' ? (zh ? '新交易' : 'New Transaction') : (zh ? '重试' : 'Try Again')}
           </Button>
         )}
       </CardContent>

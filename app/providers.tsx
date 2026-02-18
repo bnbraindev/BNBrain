@@ -15,7 +15,16 @@ import {
   trustWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import '@rainbow-me/rainbowkit/styles.css';
-import { bsc, bscTestnet } from 'wagmi/chains';
+import { bsc } from 'wagmi/chains';
+import { opBNB as opBNBBase } from 'viem/chains';
+import type { Chain } from 'wagmi/chains';
+
+// Extend opBNB with icon metadata for RainbowKit
+const opBNB = {
+  ...opBNBBase,
+  iconUrl: '/chains/opbnb.svg',
+  iconBackground: '#F0B90B',
+} as Chain & { iconUrl: string; iconBackground: string };
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ToastProvider } from '@/components/ui/toast';
 import { I18nProvider } from '@/lib/i18n/context';
@@ -36,16 +45,16 @@ const connectors = connectorsForWallets(
 
 const config = createConfig({
   connectors,
-  chains: [bsc, bscTestnet],
+  chains: [bsc, opBNB],
   transports: {
     [bsc.id]: fallback([
       http('https://bsc-dataseed.binance.org'),
       http('https://bsc-dataseed1.defibit.io'),
       http('https://bsc-dataseed1.ninicoin.io'),
     ]),
-    [bscTestnet.id]: fallback([
-      http('https://bsc-testnet-dataseed.bnbchain.org'),
-      http('https://data-seed-prebsc-1-s1.bnbchain.org:8545'),
+    [opBNB.id]: fallback([
+      http('https://opbnb-mainnet-rpc.bnbchain.org'),
+      http('https://opbnb-rpc.publicnode.com'),
     ]),
   },
   ssr: false,

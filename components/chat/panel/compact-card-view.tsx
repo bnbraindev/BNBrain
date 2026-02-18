@@ -1,15 +1,36 @@
 'use client';
 
-import { CheckCircle, AlertTriangle, ChevronRight, ExternalLink, Copy, Check } from 'lucide-react';
+import { CheckCircle, AlertTriangle, ChevronRight, ExternalLink, Copy, Check, Wallet, Loader2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useState, useRef, useCallback } from 'react';
-import { getToolLabel, getToolSummary, isHighRisk } from '../tool-invocation';
+import { getToolLabel, getToolSummary, isHighRisk, TX_TOOLS } from '../tool-invocation';
+import { EXPLORER_URLS } from '@/lib/utils/constants';
+import { useTxStatusStore } from '@/lib/stores/tx-status-store';
 import type { PanelCard } from './panel-context';
 
 interface CompactCardViewProps {
   card: PanelCard;
   locale: string;
+  conversationId?: string;
   onExpand: () => void;
 }
+
+const TX_SUMMARY_ZH: Record<string, string> = {
+  idle: '待签名',
+  confirming: '签名中…',
+  pending: '确认中…',
+  success: '已完成',
+  cancelled: '已取消',
+  error: '失败',
+};
+const TX_SUMMARY_EN: Record<string, string> = {
+  idle: '待签名',
+  confirming: 'Signing…',
+  pending: 'Confirming…',
+  success: 'Done',
+  cancelled: 'Cancelled',
+  error: 'Failed',
+};
 
 function extractContractAddress(card: PanelCard): string | null {
   if (!card.output) return null;
@@ -29,6 +50,13 @@ function extractTxHash(card: PanelCard): string | null {
   if (!card.output) return null;
   const hash = card.output.txHash ?? card.output.transactionHash;
   return typeof hash === 'string' && hash.startsWith('0x') ? hash : null;
+}
+
+function getExplorerBase(card: PanelCard): string {
+  if (!card.output) return EXPLORER_URLS[56];
+  const chainId = card.output.chainId as number | undefined
+    ?? (card.output.plan as Record<string, unknown> | undefined)?.chainId as number | undefined;
+  return EXPLORER_URLS[chainId ?? 56] ?? EXPLORER_URLS[56];
 }
 
 function CopyBtn({ value }: { value: string }) {
@@ -53,11 +81,42 @@ function CopyBtn({ value }: { value: string }) {
   );
 }
 
-export function CompactCardView({ card, locale, onExpand }: CompactCardViewProps) {
-  const summary = getToolSummary(card.toolName, card.output ?? {}, locale);
+export function CompactCardView({ card, locale, conversationId, onExpand }: CompactCardViewProps) {
+  const isTx = TX_TOOLS.has(card.toolName);
+  const txKey = isTx && conversationId ? `${conversationId}:${card.id}` : '';
+  const txStatus = useTxStatusStore((s) => (txKey ? s.statuses[txKey] : undefined));
+
+  const txDone = txStatus === 'success';
+  const txActive = txStatus === 'confirming' || txStatus === 'pending';
+  const txFailed = txStatus === 'error' || txStatus === 'cancelled';
+
+  // Derive summary with tx-state awareness
+  let summary: string;
+  if (isTx && txStatus) {
+    const labels = locale === 'zh' ? TX_SUMMARY_ZH : TX_SUMMARY_EN;
+    summary = labels[txStatus] ?? getToolSummary(card.toolName, card.output ?? {}, locale);
+  } else {
+    summary = getToolSummary(card.toolName, card.output ?? {}, locale);
+  }
+
   const contractAddr = extractContractAddress(card);
   const txHash = extractTxHash(card);
   const highRisk = card.output ? isHighRisk(card.output) : false;
+  const explorerBase = getExplorerBase(card);
+
+  // Derive icon
+  let icon: ReactNode;
+  if (highRisk || txFailed) {
+    icon = <AlertTriangle className="size-3.5 shrink-0 text-red-400" />;
+  } else if (isTx && txDone) {
+    icon = <CheckCircle className="size-3.5 shrink-0 text-emerald-500" />;
+  } else if (isTx && txActive) {
+    icon = <Loader2 className="size-3.5 shrink-0 animate-spin icon-spin text-primary" />;
+  } else if (isTx) {
+    icon = <Wallet className="size-3.5 shrink-0 text-amber-500" />;
+  } else {
+    icon = <CheckCircle className="size-3.5 shrink-0 text-emerald-500" />;
+  }
 
   return (
     <div
@@ -70,13 +129,9 @@ export function CompactCardView({ card, locale, onExpand }: CompactCardViewProps
           onExpand();
         }
       }}
-      className="group flex items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-xs cursor-pointer transition-colors hover:border-border hover:bg-card/60"
+      className={`group flex items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-xs cursor-pointer transition-colors hover:border-border hover:bg-card/60 ${txActive ? 'animate-pulse-glow' : ''}`}
     >
-      {highRisk ? (
-        <AlertTriangle className="size-3.5 shrink-0 text-red-400" />
-      ) : (
-        <CheckCircle className="size-3.5 shrink-0 text-emerald-500" />
-      )}
+      {icon}
 
       <span className="font-medium text-foreground shrink-0">
         {getToolLabel(card.toolName, locale)}
@@ -93,7 +148,7 @@ export function CompactCardView({ card, locale, onExpand }: CompactCardViewProps
           <>
             <CopyBtn value={contractAddr} />
             <a
-              href={`https://bscscan.com/address/${contractAddr}`}
+              href={`${explorerBase}/address/${contractAddr}`}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded p-0.5 text-muted-foreground/50 hover:text-primary transition-colors"
@@ -106,7 +161,7 @@ export function CompactCardView({ card, locale, onExpand }: CompactCardViewProps
           <>
             <CopyBtn value={txHash} />
             <a
-              href={`https://bscscan.com/tx/${txHash}`}
+              href={`${explorerBase}/tx/${txHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded p-0.5 text-muted-foreground/50 hover:text-primary transition-colors"

@@ -8,6 +8,7 @@ import { useChatStore } from '@/lib/stores/chat-store';
 import { cn } from '@/lib/utils';
 import { clearWalletSession } from '@/lib/services/wallet-auth';
 import { useEffect, useRef } from 'react';
+import { useI18n } from '@/lib/i18n/context';
 
 function formatBnbBalance(value: bigint, decimals: number): string {
   const formatted = formatUnits(value, decimals);
@@ -168,6 +169,8 @@ function useDisconnectWatcher() {
 
 export function WalletButton() {
   useDisconnectWatcher();
+  const { locale } = useI18n();
+  const zh = locale === 'zh';
   const { address: connectedAddress } = useAccount();
   const authenticatedAddress = useChatStore((s) => s.authenticatedAddress);
   const isMismatch = Boolean(
@@ -206,7 +209,7 @@ export function WalletButton() {
                     onClick={openConnectModal}
                     className="flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-border bg-card/80 px-3 text-sm font-medium text-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-card"
                   >
-                    Connect Wallet
+                    {zh ? '连接钱包' : 'Connect Wallet'}
                   </button>
                 );
               }
@@ -219,7 +222,7 @@ export function WalletButton() {
                     className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 text-xs font-medium text-red-400 shadow-sm transition-colors hover:bg-red-500/15"
                   >
                     <span className="size-1.5 rounded-full bg-red-500 animate-pulse" />
-                    Wrong network
+                    {zh ? '网络错误' : 'Wrong network'}
                   </button>
                 );
               }
@@ -252,7 +255,7 @@ export function WalletButton() {
                         ? 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15'
                         : 'border-border bg-card/80 hover:bg-card'
                     )}
-                    title={isMismatch ? 'Wallet address does not match signed-in session' : undefined}
+                    title={isMismatch ? (zh ? '钱包地址与登录会话不匹配' : 'Wallet address does not match signed-in session') : undefined}
                   >
                     {isMismatch && (
                       <span className="size-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />

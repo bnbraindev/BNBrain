@@ -50,7 +50,6 @@ export const REPORT_REGISTRY_ABI = [
 
 // Will be set after deployment — update this address
 export const REPORT_REGISTRY_ADDRESS: Record<number, `0x${string}`> = {
-  97: '0x0000000000000000000000000000000000000000', // BSC Testnet — update after deploy
   204: '0x0000000000000000000000000000000000000000', // opBNB — update after deploy
 };
 
