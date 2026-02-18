@@ -335,7 +335,7 @@ function MockProjectsInner() {
       shortId,
       name,
       description,
-      type,
+      projectType: type,
       status: 'draft',
       memory: `# ${name} — Project Memory\n\n> Auto-maintained by BNB Shield AI. Last updated: 2026-02-18.\n\n## Contract\n\n- Chain: BSC (56)\n- Address: (not deployed yet)\n- Status: Draft\n\n## History\n\n- 2026-02-18 — Project created\n\n## TODO\n\n- [ ] Deploy contract\n- [ ] Verify on explorer`,
       files: [

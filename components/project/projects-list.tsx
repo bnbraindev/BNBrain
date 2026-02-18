@@ -29,7 +29,7 @@ export function ProjectsList({
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
-        (p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+        (p) => p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q)
       );
     }
     return [...list].sort((a, b) => {
@@ -104,7 +104,7 @@ export function ProjectsList({
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {filtered.map((p) => {
-            const meta = PROJECT_TYPE_META[p.type];
+            const meta = PROJECT_TYPE_META[p.projectType];
             const Icon = meta.icon;
             return (
               <button

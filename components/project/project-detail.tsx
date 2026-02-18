@@ -51,7 +51,7 @@ export function ProjectDetail({
             <div className="mb-1.5 flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold text-foreground">{project.name}</h1>
               <StatusBadge status={project.status} />
-              <TypeBadge type={project.type} />
+              <TypeBadge type={project.projectType} />
               {project.primaryChainId && <ChainBadge chainId={project.primaryChainId} />}
             </div>
             <p className="max-w-xl text-sm text-muted-foreground">{project.description}</p>

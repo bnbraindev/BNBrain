@@ -14,28 +14,36 @@ export interface Project {
   id: string;
   shortId: string;
   name: string;
-  description: string;
-  type: ProjectType;
+  description: string | null;
+  projectType: ProjectType;
   status: ProjectStatus;
-  primaryChainId?: number;
-  primaryContractAddress?: string;
+  primaryChainId?: number | null;
+  primaryContractAddress?: string | null;
+  metadata?: Record<string, unknown>;
   memory: string;
   files: ProjectFile[];
   conversations: ProjectConversation[];
   contracts: ContractInfo[];
   createdAt: string;
   updatedAt: string;
+  // Server-side aggregated counts (from listProjects)
+  conversationCount?: number;
+  fileCount?: number;
 }
 
 /** Matches spec §3.1 — project_files table */
 export interface ProjectFile {
+  id?: string;
+  projectId?: string;
   path: string;
   content: string;
   contentType: string;
-  language: string;
+  language?: string;
   updatedBy: FileUpdatedBy;
   version: number;
   sizeBytes: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProjectConversation {

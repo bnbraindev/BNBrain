@@ -6,7 +6,7 @@ declare global {
   var __bnbrainSchemaVersion: number | undefined;
 }
 
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 function resolveDatabaseUrl(): string {
   const directUrl = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
@@ -290,6 +290,71 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await pool.query(`
         ALTER TABLE reports
         ADD COLUMN IF NOT EXISTS report_type TEXT NOT NULL DEFAULT 'deep_analysis';
+      `);
+
+      // ── v10: Projects feature ──
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS projects (
+          id TEXT PRIMARY KEY,
+          short_id VARCHAR(8) UNIQUE NOT NULL,
+          owner_type TEXT NOT NULL CHECK (owner_type IN ('wallet', 'guest')),
+          owner_id TEXT NOT NULL,
+          name VARCHAR(120) NOT NULL,
+          description TEXT,
+          project_type TEXT NOT NULL DEFAULT 'custom'
+            CHECK (project_type IN ('token', 'nft', 'defi', 'custom')),
+          status TEXT NOT NULL DEFAULT 'draft'
+            CHECK (status IN ('draft', 'active', 'archived')),
+          primary_chain_id INTEGER,
+          primary_contract_address TEXT,
+          metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at BIGINT NOT NULL,
+          updated_at BIGINT NOT NULL
+        );
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_projects_owner
+        ON projects(owner_type, owner_id, updated_at DESC);
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_projects_short_id
+        ON projects(short_id);
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_projects_contract
+        ON projects(primary_chain_id, primary_contract_address)
+        WHERE primary_contract_address IS NOT NULL;
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS project_files (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          path VARCHAR(500) NOT NULL,
+          content TEXT NOT NULL DEFAULT '',
+          content_type VARCHAR(50) NOT NULL DEFAULT 'text/plain',
+          size_bytes INTEGER NOT NULL DEFAULT 0,
+          updated_by TEXT NOT NULL DEFAULT 'system'
+            CHECK (updated_by IN ('ai', 'user', 'system')),
+          version INTEGER NOT NULL DEFAULT 1,
+          created_at BIGINT NOT NULL,
+          updated_at BIGINT NOT NULL,
+          UNIQUE (project_id, path)
+        );
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_project_files_project
+        ON project_files(project_id, path);
+      `);
+
+      await pool.query(`
+        ALTER TABLE conversations
+        ADD COLUMN IF NOT EXISTS project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_conversations_project
+        ON conversations(project_id, updated_at DESC)
+        WHERE project_id IS NOT NULL;
       `);
       } catch (error) {
         globalThis.__bnbrainSchemaReady = undefined;
