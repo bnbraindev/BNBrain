@@ -6,6 +6,7 @@ import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { ChatInput } from './chat-input';
 import { useChatStore } from '@/lib/stores/chat-store';
+import { useProjectStore } from '@/lib/stores/project-store';
 import { useI18n } from '@/lib/i18n/context';
 import { mapChatErrorToUserMessage } from '@/lib/utils/chat-error';
 import { retryingFetch } from '@/lib/utils/retry-fetch';
@@ -385,6 +386,8 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     };
   }, []);
 
+  const activeProjectId = useProjectStore((s) => s.activeProjectId);
+
   const userContext = useMemo(() => ({
     authState: isAuthenticated ? 'authenticated' : 'guest',
     address: isAuthenticated ? currentAddress : null,
@@ -396,6 +399,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     conversationScope: activeScope,
     conversationContextStatus: activeConv?.contextInjectionStatus ?? 'not_injected',
     modelId: selectedModelId ?? undefined,
+    projectId: activeProjectId ?? undefined,
   }), [
     isAuthenticated,
     currentAddress,
@@ -406,6 +410,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     activeScope,
     activeConv?.contextInjectionStatus,
     selectedModelId,
+    activeProjectId,
   ]);
 
   const contextFingerprint = useMemo(

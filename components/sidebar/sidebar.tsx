@@ -24,6 +24,8 @@ import {
   Globe,
   Bug,
   ChevronDown,
+  FolderOpen,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,12 +37,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useChatStore, type Conversation } from '@/lib/stores/chat-store';
+import { useProjectStore } from '@/lib/stores/project-store';
 import { useAccount, useSignMessage } from 'wagmi';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n/context';
 import { useShallow } from 'zustand/react/shallow';
 import { VList } from 'virtua';
 import { warmCachedUIMessages } from '@/lib/chat/ui-message-cache';
+import { PROJECT_TYPE_META, STATUS_META } from '@/components/project/ui';
+import type { SidebarTab } from '@/components/project/types';
 import {
   clearWalletSession,
   getWalletSessionState,
@@ -186,6 +191,32 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
     }))
   );
 
+  // ── Project store ──
+  const {
+    sidebarTab,
+    setSidebarTab,
+    projects,
+    projectsLoading,
+    fetchProjects,
+    setActiveProject,
+  } = useProjectStore(
+    useShallow((s) => ({
+      sidebarTab: s.sidebarTab,
+      setSidebarTab: s.setSidebarTab,
+      projects: s.projects,
+      projectsLoading: s.projectsLoading,
+      fetchProjects: s.fetchProjects,
+      setActiveProject: s.setActiveProject,
+    }))
+  );
+
+  // Fetch projects when switching to projects tab
+  useEffect(() => {
+    if (sidebarTab === 'projects') {
+      void fetchProjects();
+    }
+  }, [sidebarTab, fetchProjects, authenticatedAddress]);
+
   useEffect(() => {
     if (searchOpen && searchInputRef.current) {
       searchInputRef.current.focus();
@@ -317,6 +348,20 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
       toggleConversationStarred(id);
     },
     [toggleConversationStarred]
+  );
+
+  const handleSelectProject = useCallback(
+    (id: string) => {
+      setActiveProject(id);
+      setSidebarTab('chats'); // switch back to chats to show project detail later
+      setSidebarOpen(false);
+      // Navigate to project detail if needed — for now, use URL
+      const project = projects.find((p) => p.id === id);
+      if (project) {
+        window.location.href = `/x/${project.shortId}`;
+      }
+    },
+    [setActiveProject, setSidebarTab, setSidebarOpen, projects]
   );
 
   const handleSignIn = useCallback(async () => {
@@ -941,70 +986,162 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
         </div>
         <div className="sidebar-gradient-sep" />
 
-        {/* Conversation list */}
-        <div className="min-h-0 flex-1">
-          {shareToken ? (
-            <div className="px-2 pb-1 pt-2">
-              <div className="flex min-h-10 w-full items-center gap-2 rounded-xl border border-ring/35 bg-primary/10 px-2.5 py-1.5">
-                <MessageSquare className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-                <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                  {sharedReadingTitle}
-                </p>
-                <span className="rounded border border-violet-500/20 bg-violet-500/10 px-1.5 py-0.5 text-xs font-medium text-violet-400">
-                  {t('sidebar.fromShared')}
-                </span>
-              </div>
-            </div>
-          ) : null}
-          {visibleConversations.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 px-2 py-12 text-center">
-                <MessageSquare className="size-8 text-muted-foreground/60" aria-hidden="true" />
-                <p className="text-xs text-muted-foreground">
-                {t('sidebar.noConversations')}
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                  className="cursor-pointer border-border bg-sidebar text-xs text-foreground transition-colors duration-200 motion-reduce:transition-none hover:bg-accent"
-                onClick={handleNew}
+        {/* Tab switcher: Chats / Projects */}
+        <div className="shrink-0 px-3 py-1.5">
+          <div className="flex rounded-lg bg-muted/30 p-0.5">
+            {([
+              { key: 'chats' as SidebarTab, label: locale === 'zh' ? '对话' : 'Chats', icon: MessageSquare },
+              { key: 'projects' as SidebarTab, label: locale === 'zh' ? '项目' : 'Projects', icon: FolderOpen },
+            ]).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setSidebarTab(tab.key)}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                  sidebarTab === tab.key
+                    ? 'bg-sidebar text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
               >
-                <Plus className="size-3 mr-1.5" aria-hidden="true" />
-                {t('sidebar.startNew')}
-              </Button>
-            </div>
-          ) : (
-            <VList
-              data={sidebarItems}
-              itemSize={64}
-              bufferSize={800}
-              className="h-full overflow-y-auto overscroll-contain px-2 py-2"
-            >
-              {(item) =>
-                item.type === 'header' ? (
-                  <div
-                    key={item.key}
-                    className="px-2.5 pt-3 pb-1 text-xs uppercase tracking-widest text-muted-foreground/60 select-none"
+                <tab.icon className="size-3" aria-hidden="true" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="sidebar-gradient-sep" />
+
+        {/* Content list: Chats or Projects */}
+        <div className="min-h-0 flex-1">
+          {sidebarTab === 'chats' ? (
+            <>
+              {shareToken ? (
+                <div className="px-2 pb-1 pt-2">
+                  <div className="flex min-h-10 w-full items-center gap-2 rounded-xl border border-ring/35 bg-primary/10 px-2.5 py-1.5">
+                    <MessageSquare className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                      {sharedReadingTitle}
+                    </p>
+                    <span className="rounded border border-violet-500/20 bg-violet-500/10 px-1.5 py-0.5 text-xs font-medium text-violet-400">
+                      {t('sidebar.fromShared')}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+              {visibleConversations.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 px-2 py-12 text-center">
+                    <MessageSquare className="size-8 text-muted-foreground/60" aria-hidden="true" />
+                    <p className="text-xs text-muted-foreground">
+                    {t('sidebar.noConversations')}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                      className="cursor-pointer border-border bg-sidebar text-xs text-foreground transition-colors duration-200 motion-reduce:transition-none hover:bg-accent"
+                    onClick={handleNew}
                   >
-                    {item.label}
-                  </div>
-                ) : (
-                  <div key={item.key} className="py-0.5">
-                    <ConversationItem
-                      conversation={item.conversation}
-                      t={t}
-                      isActive={item.conversation.id === activeConversationId}
-                      onSelect={handleSelect}
-                      onWarm={handleWarmConversation}
-                      onDelete={handleDelete}
-                      onRename={handleRename}
-                      onToggleStar={handleToggleStar}
-                      onOpenShareDialog={handleOpenShareDialog}
-                      onDisableShare={handleDisableShare}
-                    />
-                  </div>
-                )
-              }
-            </VList>
+                    <Plus className="size-3 mr-1.5" aria-hidden="true" />
+                    {t('sidebar.startNew')}
+                  </Button>
+                </div>
+              ) : (
+                <VList
+                  data={sidebarItems}
+                  itemSize={64}
+                  bufferSize={800}
+                  className="h-full overflow-y-auto overscroll-contain px-2 py-2"
+                >
+                  {(item) =>
+                    item.type === 'header' ? (
+                      <div
+                        key={item.key}
+                        className="px-2.5 pt-3 pb-1 text-xs uppercase tracking-widest text-muted-foreground/60 select-none"
+                      >
+                        {item.label}
+                      </div>
+                    ) : (
+                      <div key={item.key} className="py-0.5">
+                        <ConversationItem
+                          conversation={item.conversation}
+                          t={t}
+                          isActive={item.conversation.id === activeConversationId}
+                          onSelect={handleSelect}
+                          onWarm={handleWarmConversation}
+                          onDelete={handleDelete}
+                          onRename={handleRename}
+                          onToggleStar={handleToggleStar}
+                          onOpenShareDialog={handleOpenShareDialog}
+                          onDisableShare={handleDisableShare}
+                        />
+                      </div>
+                    )
+                  }
+                </VList>
+              )}
+            </>
+          ) : (
+            /* Projects tab */
+            <div className="h-full overflow-y-auto px-2 py-2">
+              {projectsLoading && projects.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : projects.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 px-2 py-12 text-center">
+                  <FolderOpen className="size-8 text-muted-foreground/60" aria-hidden="true" />
+                  <p className="text-xs text-muted-foreground">
+                    {locale === 'zh' ? '暂无项目' : 'No projects yet'}
+                  </p>
+                  <p className="max-w-[200px] text-xs text-muted-foreground/60">
+                    {locale === 'zh'
+                      ? '在对话中使用 AI 创建你的第一个项目'
+                      : 'Create your first project through AI chat'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {projects.map((project) => {
+                    const meta = PROJECT_TYPE_META[project.projectType];
+                    const statusMeta = STATUS_META[project.status];
+                    const Icon = meta.icon;
+                    return (
+                      <button
+                        key={project.id}
+                        type="button"
+                        onClick={() => handleSelectProject(project.id)}
+                        className="group flex w-full items-center gap-2.5 rounded-xl border border-transparent px-2.5 py-2 text-left transition-colors duration-200 hover:border-border hover:bg-accent/80"
+                      >
+                        <div className={cn('flex size-7 shrink-0 items-center justify-center rounded-lg border', meta.bgColor)}>
+                          <Icon className={cn('size-3.5', meta.color)} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                              {project.name}
+                            </p>
+                            <span className={cn('size-1.5 shrink-0 rounded-full', statusMeta.dotColor)} />
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+                            {project.fileCount !== undefined && (
+                              <span className="flex items-center gap-0.5">
+                                <FileText className="size-2.5" /> {project.fileCount}
+                              </span>
+                            )}
+                            {project.conversationCount !== undefined && (
+                              <span className="flex items-center gap-0.5">
+                                <MessageSquare className="size-2.5" /> {project.conversationCount}
+                              </span>
+                            )}
+                            <span className="font-mono text-primary/60">/x/{project.shortId}</span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -1082,7 +1219,9 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
 
           {/* Stats */}
           <span className="ml-auto text-xs text-muted-foreground/40">
-            {visibleConversations.length} chats
+            {sidebarTab === 'chats'
+              ? `${visibleConversations.length} chats`
+              : `${projects.length} projects`}
           </span>
         </div>
       </aside>
