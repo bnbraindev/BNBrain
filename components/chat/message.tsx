@@ -2,12 +2,14 @@
 
 import type { UIMessage } from 'ai';
 import { getToolName, isTextUIPart, isToolUIPart } from 'ai';
-import { Shield, User, Copy, Check, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Shield, User, Copy, Check, ThumbsUp, ThumbsDown, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { ToolInvocation } from './tool-invocation';
+import { getToolLabel, getToolSummary, isHighRisk } from './tool-invocation';
 import { Markdown } from './markdown';
 import { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import { useI18n } from '@/lib/i18n/context';
 import { useToast } from '@/components/ui/toast';
+import { usePanelContext } from './panel/panel-context';
 
 /** Extended message type that may carry a creation timestamp at runtime. */
 type MessageWithTimestamp = UIMessage & {
@@ -53,6 +55,7 @@ export const Message = memo(function Message({ message, conversationId, readOnly
   const isUser = message.role === 'user';
   const { locale, t } = useI18n();
   const { pushToast } = useToast();
+  const { hasPanel, onBadgeClick } = usePanelContext();
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -239,16 +242,53 @@ export const Message = memo(function Message({ message, conversationId, readOnly
         {/* Assistant content */}
         <div className="flex min-w-0 flex-col gap-3">
           {textContent ? <Markdown content={textContent} /> : null}
-          {toolParts.map((part, idx) => (
-            <ToolInvocation
-              key={part.toolCallId}
-              toolInvocation={part}
-              conversationId={conversationId}
-              locale={locale}
-              readOnly={readOnly}
-              stepLabel={toolParts.length > 1 ? `${idx + 1}/${toolParts.length}` : undefined}
-            />
-          ))}
+          {toolParts.map((part, idx) => {
+            // When panel is active, render tool calls as compact inline badges
+            if (hasPanel) {
+              const tName = getToolName(part);
+              const isDone = part.state === 'output-available';
+              const isErr = part.state === 'output-error';
+              const output = isDone ? (part.output as Record<string, unknown> | undefined) : undefined;
+              const hidden = output?._hidden;
+              if (hidden) return null;
+              const highRisk = output ? isHighRisk(output) : false;
+              const summary = isDone && output ? getToolSummary(tName, output, locale) : null;
+
+              return (
+                <button
+                  key={part.toolCallId}
+                  type="button"
+                  onClick={() => onBadgeClick?.(part.toolCallId)}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors cursor-pointer ${
+                    isErr
+                      ? 'border-red-500/30 bg-red-500/10 text-red-400'
+                      : highRisk
+                        ? 'border-red-500/30 bg-red-500/5 text-red-400 hover:bg-red-500/10'
+                        : isDone
+                          ? 'border-border bg-card hover:bg-accent text-foreground'
+                          : 'border-ring/30 bg-primary/10 text-muted-foreground animate-pulse-glow'
+                  }`}
+                >
+                  {!isDone && !isErr && <Loader2 className="size-3 animate-spin text-primary" />}
+                  {isDone && !highRisk && <CheckCircle className="size-3 text-emerald-500" />}
+                  {(isErr || highRisk) && <AlertTriangle className="size-3" />}
+                  <span className="font-medium">{getToolLabel(tName, locale)}</span>
+                  {summary && <span className="max-w-[120px] truncate text-muted-foreground">{summary}</span>}
+                </button>
+              );
+            }
+
+            return (
+              <ToolInvocation
+                key={part.toolCallId}
+                toolInvocation={part}
+                conversationId={conversationId}
+                locale={locale}
+                readOnly={readOnly}
+                stepLabel={toolParts.length > 1 ? `${idx + 1}/${toolParts.length}` : undefined}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

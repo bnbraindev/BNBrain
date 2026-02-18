@@ -823,3 +823,7 @@ function FallbackResult({ data }: { data: unknown }) {
     </Card>
   );
 }
+
+// ── Exports for CardPanel / CompactCardView ─────────────────
+export { getToolLabel, getToolSummary, getLoadingLabel, INTERACTIVE_TOOLS, isHighRisk, renderFullCard };
+export type { ToolPart };

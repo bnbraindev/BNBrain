@@ -3,7 +3,12 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, BarChart3 } from 'lucide-react';
+import { isToolUIPart, getToolName } from 'ai';
+import { cn } from '@/lib/utils';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { CardPanel } from './panel/card-panel';
+import { PanelContext, type PanelCard } from './panel/panel-context';
 import { ChatInput } from './chat-input';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useProjectStore } from '@/lib/stores/project-store';
@@ -652,6 +657,89 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     }
     return liveMessages;
   }, [messages, isReadingSharedConversation, sharedConversation?.messages]);
+
+  // ── Panel cards derivation ────────────────────────────────
+  const panelCards = useMemo<PanelCard[]>(() => {
+    if (isReadingSharedConversation) return [];
+    const cards: PanelCard[] = [];
+    for (let mi = 0; mi < visibleMessages.length; mi++) {
+      const msg = visibleMessages[mi];
+      if (msg.role !== 'assistant') continue;
+      const toolParts = msg.parts.filter(isToolUIPart);
+      for (const part of toolParts) {
+        if (part.state === 'output-available') {
+          const out = part.output as Record<string, unknown> | undefined;
+          if (out?._hidden) continue;
+        }
+        cards.push({
+          id: part.toolCallId,
+          toolName: getToolName(part),
+          state:
+            part.state === 'output-available'
+              ? 'completed'
+              : part.state === 'output-error'
+                ? 'error'
+                : 'loading',
+          output:
+            part.state === 'output-available'
+              ? (part.output as Record<string, unknown>)
+              : undefined,
+          input:
+            'input' in part
+              ? (part.input as Record<string, unknown>)
+              : undefined,
+          messageId: msg.id,
+          messageIndex: mi,
+          toolPart: part,
+        });
+      }
+    }
+    return cards;
+  }, [visibleMessages, isReadingSharedConversation]);
+
+  // ── Panel visibility state ────────────────────────────────
+  const [panelManualClosed, setPanelManualClosed] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const hasCards = panelCards.length > 0;
+  const showPanel = hasCards && !panelManualClosed && !isReadingSharedConversation;
+
+  // Auto-reopen when new cards arrive after manual close
+  const prevCardCountRef2 = useRef(0);
+  useEffect(() => {
+    if (panelCards.length > prevCardCountRef2.current) {
+      setPanelManualClosed(false);
+    }
+    prevCardCountRef2.current = panelCards.length;
+  }, [panelCards.length]);
+
+  // ── Panel ↔ Message bidirectional navigation ──────────────
+  const scrollMessageToCard = useCallback(
+    (cardId: string) => {
+      const card = panelCards.find((c) => c.id === cardId);
+      if (!card || !messageListRef.current) return;
+      messageListRef.current.scrollToIndex(card.messageIndex, { align: 'center', smooth: true });
+    },
+    [panelCards, messageListRef]
+  );
+
+  const scrollPanelToCard = useCallback((cardId: string) => {
+    const el = document.querySelector(`[data-card-id="${cardId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-primary/50');
+      setTimeout(() => el.classList.remove('ring-2', 'ring-primary/50'), 1500);
+    }
+  }, []);
+
+  // PanelContext value
+  const panelContextValue = useMemo(
+    () => ({
+      hasPanel: showPanel,
+      onBadgeClick: showPanel ? scrollPanelToCard : undefined,
+    }),
+    [showPanel, scrollPanelToCard]
+  );
+
   const viewportConversationKey = useMemo(() => {
     if (isReadingSharedConversation && shareToken) {
       return `share:${shareToken}`;
@@ -1109,141 +1197,201 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
   }, [runtimeDebugContext, pushToast, locale]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-hidden px-2.5 pt-11 sm:px-4 sm:pt-12">
-        <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 py-4 sm:gap-6 sm:py-8">
-          {debugMode && (
-            <DebugPanel
+    <PanelContext.Provider value={panelContextValue}>
+      <div className="flex h-full min-h-0">
+        {/* ── Left: Message stream + controls ── */}
+        <div className="flex min-w-0 flex-1 flex-col min-h-0">
+          <div className="min-h-0 flex-1 overflow-hidden px-2.5 pt-11 sm:px-4 sm:pt-12">
+            <div className={cn(
+              "mx-auto flex h-full w-full flex-col gap-4 py-4 sm:gap-6 sm:py-8",
+              showPanel ? "max-w-3xl" : "max-w-4xl"
+            )}>
+              {debugMode && (
+                <DebugPanel
+                  t={t}
+                  runtimeDebugContext={runtimeDebugContext}
+                  onCopy={handleCopyDebugJson}
+                />
+              )}
+
+              {isReadingSharedConversation ? (
+                <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-400">
+                  {sharedConversationLoading
+                    ? locale === 'zh'
+                      ? '正在加载共享会话…'
+                      : 'Loading shared conversation...'
+                    : forkingFromShare
+                      ? locale === 'zh'
+                        ? '正在无感 Fork 并切换到你的会话…'
+                        : 'Forking silently and switching to your conversation...'
+                      : locale === 'zh'
+                        ? '你正在查看共享会话，发送消息后会自动 Fork 到你的会话。'
+                        : 'You are reading a shared conversation. Sending a message auto-forks it to your own chat.'}
+                </div>
+              ) : null}
+
+              {isReadingSharedConversation && sharedConversationError ? (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+                  {sharedConversationError}
+                </div>
+              ) : null}
+
+              {showSharedLoadingPlaceholder ? (
+                <div className="flex min-h-[12rem] items-center justify-center rounded-xl border border-border bg-card/85">
+                  <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="size-3.5 animate-spin rounded-full border-2 border-ring/35 border-t-primary" />
+                    {locale === 'zh' ? '正在加载共享会话内容…' : 'Loading shared conversation...'}
+                  </div>
+                </div>
+              ) : showSharedErrorPlaceholder ? (
+                <div className="flex min-h-[16rem] flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card/85 px-6 py-8 text-center">
+                  <div className="flex size-12 items-center justify-center rounded-full bg-amber-500/10">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-base font-medium text-foreground">
+                      {locale === 'zh' ? '链接无效或已过期' : 'Link invalid or expired'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {sharedConversationError}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { window.location.href = '/'; }}
+                    className="mt-1 rounded-lg bg-primary/90 px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary"
+                  >
+                    {locale === 'zh' ? '返回首页' : 'Back to home'}
+                  </button>
+                </div>
+              ) : isEmpty ? (
+                <EmptyState
+                  t={t}
+                  isStreaming={isStreaming}
+                  quickActions={QUICK_ACTIONS}
+                  onQuickAction={handleQuickAction}
+                />
+              ) : (
+                <MessageStreamView
+                  locale={locale}
+                  t={t}
+                  viewportConversationKey={viewportConversationKey}
+                  renderedMessages={renderedMessages}
+                  activeConversationId={isReadingSharedConversation ? null : activeConversationId}
+                  isLoadingOlderMessages={isLoadingOlderMessages}
+                  isStreaming={isStreaming}
+                  readOnly={isReadingSharedConversation}
+                  onMessageListScroll={handleMessageListScroll}
+                  messageListRef={messageListRef}
+                  showStreamSlowHint={showStreamSlowHint}
+                  showInterruptedHint={showInterruptedHint}
+                  interruptedHintText={interruptedHintText}
+                  onContinueGeneration={handleRegenerate}
+                  onDismissInterrupted={dismissInterruptedHint}
+                  hasPanel={showPanel}
+                />
+              )}
+            </div>
+          </div>
+
+          {chatError && (
+            <ChatErrorBanner
+              error={chatError}
+              locale={locale}
               t={t}
-              runtimeDebugContext={runtimeDebugContext}
-              onCopy={handleCopyDebugJson}
+              onRetry={handleRegenerate}
             />
           )}
 
-          {isReadingSharedConversation ? (
-            <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-400">
-              {sharedConversationLoading
-                ? locale === 'zh'
-                  ? '正在加载共享会话…'
-                  : 'Loading shared conversation...'
-                : forkingFromShare
-                  ? locale === 'zh'
-                    ? '正在无感 Fork 并切换到你的会话…'
-                    : 'Forking silently and switching to your conversation...'
-                  : locale === 'zh'
-                    ? '你正在查看共享会话，发送消息后会自动 Fork 到你的会话。'
-                    : 'You are reading a shared conversation. Sending a message auto-forks it to your own chat.'}
-            </div>
-          ) : null}
+          <div className={`flex justify-center pb-2 transition-all duration-200 ${
+            !isAtBottom && !isEmpty
+              ? 'translate-y-0 opacity-100'
+              : 'translate-y-4 opacity-0 pointer-events-none'
+          }`}>
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className="flex size-8 items-center justify-center rounded-full border border-border bg-background shadow-md transition-all hover:bg-accent"
+              aria-label="Scroll to bottom"
+            >
+              <ArrowDown className="size-4 text-muted-foreground" />
+            </button>
+          </div>
 
-          {isReadingSharedConversation && sharedConversationError ? (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
-              {sharedConversationError}
-            </div>
-          ) : null}
-
-          {showSharedLoadingPlaceholder ? (
-            <div className="flex min-h-[12rem] items-center justify-center rounded-xl border border-border bg-card/85">
-              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="size-3.5 animate-spin rounded-full border-2 border-ring/35 border-t-primary" />
-                {locale === 'zh' ? '正在加载共享会话内容…' : 'Loading shared conversation...'}
-              </div>
-            </div>
-          ) : showSharedErrorPlaceholder ? (
-            <div className="flex min-h-[16rem] flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card/85 px-6 py-8 text-center">
-              <div className="flex size-12 items-center justify-center rounded-full bg-amber-500/10">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-base font-medium text-foreground">
-                  {locale === 'zh' ? '链接无效或已过期' : 'Link invalid or expired'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {sharedConversationError}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { window.location.href = '/'; }}
-                className="mt-1 rounded-lg bg-primary/90 px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary"
-              >
-                {locale === 'zh' ? '返回首页' : 'Back to home'}
-              </button>
-            </div>
-          ) : isEmpty ? (
-            <EmptyState
-              t={t}
+          {!isReadingSharedConversation && !isEmpty && (
+            <SuggestedReplies
+              messages={visibleMessages}
               isStreaming={isStreaming}
-              quickActions={QUICK_ACTIONS}
-              onQuickAction={handleQuickAction}
-            />
-          ) : (
-            <MessageStreamView
               locale={locale}
-              t={t}
-              viewportConversationKey={viewportConversationKey}
-              renderedMessages={renderedMessages}
-              activeConversationId={isReadingSharedConversation ? null : activeConversationId}
-              isLoadingOlderMessages={isLoadingOlderMessages}
-              isStreaming={isStreaming}
+              onSelect={(text) => handleSend(text)}
+            />
+          )}
+
+          <ChatInput
+            key={activeConversationId ?? draftConversation?.draftId ?? 'draft-default'}
+            onSend={handleSend}
+            onStop={handleStop}
+            isStreaming={isStreaming}
+            isProcessing={forkingFromShare}
+            isDraftConversation={isDraftConversation}
+          />
+        </div>
+
+        {/* ── Right: Card panel (desktop only, >= lg) ── */}
+        <div
+          className={cn(
+            'hidden lg:block border-l border-border transition-all duration-300 ease-in-out overflow-hidden',
+            showPanel ? 'w-[420px] opacity-100' : 'w-0 opacity-0 border-l-0'
+          )}
+        >
+          {hasCards && (
+            <CardPanel
+              cards={panelCards}
+              locale={locale}
+              conversationId={activeConversationId}
               readOnly={isReadingSharedConversation}
-              onMessageListScroll={handleMessageListScroll}
-              messageListRef={messageListRef}
-              showStreamSlowHint={showStreamSlowHint}
-              showInterruptedHint={showInterruptedHint}
-              interruptedHintText={interruptedHintText}
-              onContinueGeneration={handleRegenerate}
-              onDismissInterrupted={dismissInterruptedHint}
+              onClose={() => setPanelManualClosed(true)}
+              onCardClick={scrollMessageToCard}
             />
           )}
         </div>
+
+        {/* ── Mobile: floating button + bottom Sheet (< lg) ── */}
+        {hasCards && !isReadingSharedConversation && (
+          <>
+            <button
+              type="button"
+              onClick={() => setMobileSheetOpen(true)}
+              className="fixed bottom-20 right-4 z-40 flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-2 text-xs font-medium shadow-lg transition-all hover:bg-accent lg:hidden"
+            >
+              <BarChart3 className="size-3.5 text-primary" />
+              <span>{panelCards.length}</span>
+            </button>
+            <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+              <SheetContent side="bottom" showCloseButton={false} className="h-[70vh] rounded-t-2xl p-0">
+                <SheetTitle className="sr-only">
+                  {locale === 'zh' ? '分析结果' : 'Results'}
+                </SheetTitle>
+                <CardPanel
+                  cards={panelCards}
+                  locale={locale}
+                  conversationId={activeConversationId}
+                  readOnly={isReadingSharedConversation}
+                  onClose={() => setMobileSheetOpen(false)}
+                  onCardClick={(cardId) => {
+                    setMobileSheetOpen(false);
+                    scrollMessageToCard(cardId);
+                  }}
+                />
+              </SheetContent>
+            </Sheet>
+          </>
+        )}
       </div>
-
-      {chatError && (
-        <ChatErrorBanner
-          error={chatError}
-          locale={locale}
-          t={t}
-          onRetry={handleRegenerate}
-        />
-      )}
-
-      <div className={`flex justify-center pb-2 transition-all duration-200 ${
-        !isAtBottom && !isEmpty
-          ? 'translate-y-0 opacity-100'
-          : 'translate-y-4 opacity-0 pointer-events-none'
-      }`}>
-        <button
-          type="button"
-          onClick={scrollToBottom}
-          className="flex size-8 items-center justify-center rounded-full border border-border bg-background shadow-md transition-all hover:bg-accent"
-          aria-label="Scroll to bottom"
-        >
-          <ArrowDown className="size-4 text-muted-foreground" />
-        </button>
-      </div>
-
-      {!isReadingSharedConversation && !isEmpty && (
-        <SuggestedReplies
-          messages={visibleMessages}
-          isStreaming={isStreaming}
-          locale={locale}
-          onSelect={(text) => handleSend(text)}
-        />
-      )}
-
-      <ChatInput
-        key={activeConversationId ?? draftConversation?.draftId ?? 'draft-default'}
-        onSend={handleSend}
-        onStop={handleStop}
-        isStreaming={isStreaming}
-        isProcessing={forkingFromShare}
-        isDraftConversation={isDraftConversation}
-      />
-    </div>
+    </PanelContext.Provider>
   );
 }

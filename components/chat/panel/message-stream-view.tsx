@@ -23,6 +23,7 @@ interface MessageStreamViewProps {
   interruptedHintText: string;
   onContinueGeneration: () => void;
   onDismissInterrupted: () => void;
+  hasPanel?: boolean;
 }
 
 export function MessageStreamView({
@@ -41,6 +42,7 @@ export function MessageStreamView({
   interruptedHintText,
   onContinueGeneration,
   onDismissInterrupted,
+  hasPanel,
 }: MessageStreamViewProps) {
   const safeRenderedMessages = renderedMessages.filter(
     (message): message is UIMessage =>
@@ -60,7 +62,7 @@ export function MessageStreamView({
       <VList
         key={viewportConversationKey}
         ref={messageListRef}
-        itemSize={220}
+        itemSize={hasPanel ? 100 : 220}
         bufferSize={1200}
         shift={shouldShift}
         onScroll={onMessageListScroll}
