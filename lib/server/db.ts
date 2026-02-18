@@ -236,25 +236,13 @@ export async function ensureDatabaseSchema(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_chat_runs_status
         ON chat_runs(status, created_at ASC);
       `);
-      {
-        const client = await pool.connect();
-        try {
-          await client.query('BEGIN');
-          await client.query('DROP INDEX IF EXISTS idx_chat_runs_active_chat_owner');
-          await client.query(`
-            CREATE UNIQUE INDEX idx_chat_runs_active_chat_owner
-            ON chat_runs(chat_id, owner_type, owner_id)
-            WHERE status IN ('queued', 'running', 'stalled')
-              AND cancel_requested_at IS NULL
-          `);
-          await client.query('COMMIT');
-        } catch (err) {
-          await client.query('ROLLBACK').catch(() => {});
-          throw err;
-        } finally {
-          client.release();
-        }
-      }
+      await pool.query('DROP INDEX IF EXISTS idx_chat_runs_active_chat_owner_old');
+      await pool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_runs_active_chat_owner
+        ON chat_runs(chat_id, owner_type, owner_id)
+        WHERE status IN ('queued', 'running', 'stalled')
+          AND cancel_requested_at IS NULL
+      `);
       await pool.query(`
         CREATE TABLE IF NOT EXISTS chat_run_events (
           run_id TEXT NOT NULL REFERENCES chat_runs(id) ON DELETE CASCADE,

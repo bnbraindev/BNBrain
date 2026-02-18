@@ -129,7 +129,8 @@ export async function withDataSource<T>(
 export async function withFallbackChain<T>(
   sources: Array<{ name: string; fn: () => Promise<T | null> }>,
 ): Promise<{ result: T; source: string } | null> {
-  for (const { name, fn } of sources) {
+  for (let i = 0; i < sources.length; i++) {
+    const { name, fn } = sources[i];
     const start = Date.now();
     try {
       const result = await fn();
@@ -143,9 +144,10 @@ export async function withFallbackChain<T>(
       console.log(`[data-source] ${name}: no data, trying next fallback`);
     } catch (err) {
       recordFailure(name, err);
+      const nextName = i < sources.length - 1 ? sources[i + 1].name : 'none';
       console.warn(
         `[data-source] ${name}: failed (${Date.now() - start}ms), ` +
-        `fallback_to=${sources.indexOf({ name, fn }) < sources.length - 1 ? sources[sources.indexOf({ name, fn }) + 1]?.name ?? 'none' : 'none'}, ` +
+        `fallback_to=${nextName}, ` +
         `reason=${err instanceof Error ? err.message : String(err)}`,
       );
     }

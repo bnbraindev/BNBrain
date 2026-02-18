@@ -177,6 +177,7 @@ function StatCard({
 }
 
 function SourceCard({ source }: { source: DataSourceHealth }) {
+  const { t } = useI18n();
   const totalCalls = source.successCount + source.failureCount;
   const successRate =
     totalCalls > 0
@@ -204,23 +205,23 @@ function SourceCard({ source }: { source: DataSourceHealth }) {
               : 'bg-red-500/15 text-red-500'
           }`}
         >
-          {source.healthy ? 'Healthy' : 'Unhealthy'}
+          {source.healthy ? t('admin.dataSources.healthy') : t('admin.dataSources.unhealthy')}
         </span>
       </div>
 
       {/* Metrics grid */}
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-        <MetricRow label="Success" value={source.successCount.toLocaleString()} />
-        <MetricRow label="Failures" value={source.failureCount.toLocaleString()} />
-        <MetricRow label="Success rate" value={successRate === '-' ? '-' : `${successRate}%`} />
-        <MetricRow label="Avg latency" value={source.avgResponseMs > 0 ? `${source.avgResponseMs}ms` : '-'} />
+        <MetricRow label={t('admin.dataSources.success')} value={source.successCount.toLocaleString()} />
+        <MetricRow label={t('admin.dataSources.failures')} value={source.failureCount.toLocaleString()} />
+        <MetricRow label={t('admin.dataSources.successRate')} value={successRate === '-' ? '-' : `${successRate}%`} />
+        <MetricRow label={t('admin.dataSources.avgLatency')} value={source.avgResponseMs > 0 ? `${source.avgResponseMs}ms` : '-'} />
         <MetricRow
-          label="Last success"
+          label={t('admin.dataSources.lastSuccess')}
           value={relativeTime(source.lastSuccessAt) || '-'}
           title={formatTime(source.lastSuccessAt)}
         />
         <MetricRow
-          label="Last failure"
+          label={t('admin.dataSources.lastFailure')}
           value={relativeTime(source.lastFailureAt) || '-'}
           title={formatTime(source.lastFailureAt)}
         />
@@ -229,7 +230,7 @@ function SourceCard({ source }: { source: DataSourceHealth }) {
       {/* Consecutive failures + last error */}
       {source.consecutiveFailures > 0 && (
         <div className="mt-2 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs text-red-400">
-          {source.consecutiveFailures} consecutive failure{source.consecutiveFailures > 1 ? 's' : ''}
+          {source.consecutiveFailures} {t('admin.dataSources.consecutiveFailures')}
           {source.lastError && (
             <p className="mt-0.5 truncate opacity-80" title={source.lastError}>
               {source.lastError}

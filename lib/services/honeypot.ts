@@ -138,7 +138,7 @@ export async function honeypotCheck(
   const raw = await withDataSource(SERVICE, () =>
     serviceFetch<HoneypotRawResponse>(url, {
       service: SERVICE,
-      timeoutMs: 3_000,   // D1: 3s timeout per slice decision
+      timeoutMs: 5_000,   // 5s — simulation can be slow under chain load
       maxAttempts: 1,      // No retries — graceful degradation on failure
     })
   );

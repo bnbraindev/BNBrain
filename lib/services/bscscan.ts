@@ -508,6 +508,8 @@ export interface VerifyContractInput {
   evmVersion?: string;
   licenseType?: number;
   chainId?: number;
+  /** 'solidity-single-file' | 'solidity-standard-json-input'. Auto-detected if omitted. */
+  codeFormat?: 'solidity-single-file' | 'solidity-standard-json-input';
 }
 
 /**
@@ -523,6 +525,17 @@ export async function verifyContractSource(
     return { error: 'Etherscan V2 not supported for this chain or missing API key' };
   }
 
+  // Auto-detect code format: if source starts with '{{' it's Standard JSON Input
+  const codeFormat = input.codeFormat
+    ?? (input.sourceCode.trimStart().startsWith('{{') || input.sourceCode.trimStart().startsWith('{')
+      ? 'solidity-standard-json-input'
+      : 'solidity-single-file');
+
+  // For standard-json-input, contractname must be "filename:ContractName"
+  const contractname = codeFormat === 'solidity-standard-json-input' && !input.contractName.includes(':')
+    ? `Contract.sol:${input.contractName}`
+    : input.contractName;
+
   const formParams = new URLSearchParams({
     chainid: String(chainId),
     apikey: await getApiKey(),
@@ -530,8 +543,8 @@ export async function verifyContractSource(
     action: 'verifysourcecode',
     contractaddress: input.address,
     sourceCode: input.sourceCode,
-    codeformat: 'solidity-single-file',
-    contractname: input.contractName,
+    codeformat: codeFormat,
+    contractname,
     compilerversion: input.compilerVersion,
     optimizationUsed: input.optimizationUsed ? '1' : '0',
     runs: String(input.runs ?? 200),

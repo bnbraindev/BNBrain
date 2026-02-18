@@ -2,7 +2,6 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { tokenSecurity, addressSecurity, phishingSite, dappSecurity, signatureDecode, nftSecurity, approvalSecurity } from '@/lib/services/goplus';
 import { honeypotCheck } from '@/lib/services/honeypot';
-import { sourcifyGetContractSource } from '@/lib/services/sourcify';
 import { noderealGetTransactionHistory } from '@/lib/services/nodereal';
 import { getAllDataSourceHealth } from '@/lib/services/data-source-manager';
 import { getTokenPrice, getLatestTokens, searchToken } from '@/lib/services/dexscreener';
@@ -797,18 +796,47 @@ export const aiTools = {
       'Submit a deployed contract for source code verification on BscScan/Etherscan. ' +
       'Call this after a contract deploy transaction succeeds. ' +
       'Provides the source code, compiler settings, and contract address. ' +
-      'Polls for verification status (up to 2 minutes) and generates a verification report.',
+      'Polls for verification status (up to 2 minutes) and generates a verification report. ' +
+      'Requires BscScan API key to be configured.',
     inputSchema: z.object({
       address: z.string().describe('Deployed contract address'),
       sourceCode: z.string().describe('Full Solidity source code used for compilation'),
       contractName: z.string().describe('Name of the contract to verify'),
+      compilerVersion: z.string().optional().describe('Solidity compiler version string (e.g. "v0.8.28+commit.7893614a"). Auto-detected from bundled solc if omitted.'),
       constructorArguments: z.string().optional().default('').describe('ABI-encoded constructor arguments (hex, no 0x prefix)'),
       chainId: z.number().optional().default(56),
     }),
-    execute: async ({ address, sourceCode, contractName, constructorArguments, chainId }) => {
+    execute: async ({ address, sourceCode, contractName, compilerVersion, constructorArguments, chainId }) => {
       try {
         if (!isAddress(address)) {
           return { error: 'Invalid contract address' };
+        }
+
+        // C1: Pre-check API key availability before wasting time
+        const { resolveBscScanApiKey } = await import('@/lib/server/setup-store');
+        const apiKey = await resolveBscScanApiKey();
+        if (!apiKey) {
+          return { error: 'BscScan/Etherscan API key is not configured. Set it in Admin > Settings or BSCSCAN_API_KEY env var.' };
+        }
+
+        // C2: Dynamically resolve compiler version from bundled solc
+        let resolvedCompilerVersion = compilerVersion;
+        if (!resolvedCompilerVersion) {
+          try {
+            const solc = require('solc');
+            const rawVersion: string = solc.version();
+            // solc.version() returns "0.8.33+commit.64118f21.Emscripten.clang"
+            // BscScan expects "v0.8.33+commit.64118f21"
+            const parts = rawVersion.split('.');
+            if (parts.length >= 3) {
+              const patchAndCommit = parts.slice(2).join('.').split('.Emscripten')[0].split('.Linux')[0].split('.Darwin')[0];
+              resolvedCompilerVersion = `v${parts[0]}.${parts[1]}.${patchAndCommit}`;
+            } else {
+              resolvedCompilerVersion = `v${rawVersion.split('.Emscripten')[0]}`;
+            }
+          } catch {
+            resolvedCompilerVersion = 'v0.8.28+commit.7893614a'; // safe fallback
+          }
         }
 
         const { runContractVerification } = await import('@/lib/server/contract-verification');
@@ -819,7 +847,7 @@ export const aiTools = {
             address: normalizeAddress(address),
             sourceCode,
             contractName,
-            compilerVersion: 'v0.8.33+commit.64118f21',
+            compilerVersion: resolvedCompilerVersion,
             optimizationUsed: true,
             runs: 200,
             constructorArguments: constructorArguments ?? '',
@@ -2274,15 +2302,16 @@ export const aiTools = {
       });
 
       const phase1Start = Date.now();
-      const [secResult, hpResult, contractResult, marketResult, sourcifyResult, noderealResult] = await Promise.allSettled([
+      // Note: getContractSourceCode internally tries Sourcify → BscScan fallback chain,
+      // so we DON'T call sourcifyGetContractSource separately (avoids double Sourcify request).
+      const [secResult, hpResult, contractResult, marketResult, noderealResult] = await Promise.allSettled([
         tokenSecurity(addr, chainId),
         honeypotCheck(addr, chainId),
         getContractSourceCode(addr, chainId),
         getTokenPrice(addr, chainId),
-        sourcifyGetContractSource(addr, chainId),
         noderealGetTransactionHistory(addr, { chainId }),
       ]);
-      log(`Phase1 done (${Date.now() - phase1Start}ms): goplus=${secResult.status} honeypot=${hpResult.status} bscscan=${contractResult.status} dex=${marketResult.status} sourcify=${sourcifyResult.status} nodereal=${noderealResult.status}`);
+      log(`Phase1 done (${Date.now() - phase1Start}ms): goplus=${secResult.status} honeypot=${hpResult.status} contract=${contractResult.status} dex=${marketResult.status} nodereal=${noderealResult.status}`);
       const p1dur = Date.now() - phase1Start;
 
       if (secResult.status === 'fulfilled') {
@@ -2340,18 +2369,24 @@ export const aiTools = {
           summary: 'Honeypot check unavailable', durationMs: Date.now() - phase1Start });
       }
 
-      if (contractResult.status === 'fulfilled' && contractResult.value?.sourceCode) {
-        const src = contractResult.value;
+      // contractResult comes from getContractSourceCode which tries Sourcify → BscScan
+      // The returned object includes a `source` field indicating which provider succeeded
+      const contractSource = contractResult.status === 'fulfilled' ? (contractResult.value as (typeof contractResult.value) & { source?: string }) : null;
+      const contractFromSourcify = contractSource?.source === 'sourcify';
+
+      if (contractSource?.sourceCode) {
         contractData = {
-          contractName: src.contractName, compilerVersion: src.compilerVersion,
-          optimizationUsed: src.optimizationUsed, evmVersion: src.evmVersion,
-          licenseType: src.licenseType, isProxy: src.proxy === '1',
-          sourceLineCount: src.sourceCode.split('\n').length,
-          sourcePreview: src.sourceCode.slice(0, 3000),
+          contractName: contractSource.contractName, compilerVersion: contractSource.compilerVersion,
+          optimizationUsed: contractSource.optimizationUsed, evmVersion: contractSource.evmVersion,
+          licenseType: contractSource.licenseType, isProxy: contractSource.proxy === '1',
+          sourceLineCount: contractSource.sourceCode.split('\n').length,
+          sourcePreview: contractSource.sourceCode.slice(0, 3000),
+          dataSource: contractSource.source,
         };
-        if (!tokenName && src.contractName) tokenName = src.contractName;
+        if (!tokenName && contractSource.contractName) tokenName = contractSource.contractName;
         steps.push({ key: 'contract', label: 'Contract Audit', status: 'completed',
-          summary: `${src.contractName} — ${src.sourceCode.split('\n').length} lines`, durationMs: Date.now() - phase1Start });
+          summary: `${contractSource.contractName} — ${contractSource.sourceCode.split('\n').length} lines (via ${contractSource.source ?? 'unknown'})`,
+          durationMs: Date.now() - phase1Start });
       } else {
         steps.push({ key: 'contract', label: 'Contract Audit',
           status: contractResult.status === 'rejected' ? 'failed' : 'skipped',
@@ -2378,23 +2413,21 @@ export const aiTools = {
           durationMs: Date.now() - phase1Start });
       }
 
-      // Sourcify result (independent contract verification)
-      if (sourcifyResult.status === 'fulfilled' && sourcifyResult.value) {
-        const src = sourcifyResult.value;
+      // Sourcify status derived from contractResult (getContractSourceCode tries Sourcify first)
+      if (contractFromSourcify && contractSource?.sourceCode) {
         sourcifyData = {
-          contractName: src.contractName,
-          compilerVersion: src.compilerVersion,
-          optimizationUsed: src.optimizationUsed,
+          contractName: contractSource.contractName,
+          compilerVersion: contractSource.compilerVersion,
+          optimizationUsed: contractSource.optimizationUsed,
           verified: true,
-          sourceLineCount: src.sourceCode.split('\n').length,
+          sourceLineCount: contractSource.sourceCode.split('\n').length,
         };
         steps.push({ key: 'sourcify', label: 'Sourcify Verification', status: 'completed',
-          summary: `Verified — ${src.contractName}`, durationMs: p1dur });
+          summary: `Verified — ${contractSource.contractName}`, durationMs: p1dur });
       } else {
-        steps.push({ key: 'sourcify', label: 'Sourcify Verification',
-          status: sourcifyResult.status === 'rejected' ? 'failed' : 'skipped',
-          summary: sourcifyResult.status === 'rejected' ? 'Sourcify unavailable' : 'Not verified on Sourcify',
-          durationMs: p1dur });
+        // Contract was either from BscScan or not found at all — Sourcify didn't have it
+        steps.push({ key: 'sourcify', label: 'Sourcify Verification', status: 'skipped',
+          summary: 'Not verified on Sourcify', durationMs: p1dur });
       }
 
       // NodeReal result (on-chain transaction data)
@@ -2419,8 +2452,8 @@ export const aiTools = {
       dataSourceCoverage.push(
         { name: 'GoPlus', status: secResult.status === 'fulfilled' ? 'success' : 'failed', responseMs: p1dur, detail: securityData ? `${(securityData.risks as unknown[])?.length ?? 0} risks detected` : undefined },
         { name: 'Honeypot.is', status: hpResult.status === 'fulfilled' ? 'success' : 'failed', responseMs: p1dur, detail: honeypotData ? `Simulation ${(honeypotData.simulationSuccess as boolean) ? 'success' : 'failed'}` : undefined },
-        { name: 'BscScan', status: contractResult.status === 'fulfilled' && contractResult.value?.sourceCode ? 'success' : contractResult.status === 'rejected' ? 'failed' : 'unavailable', responseMs: p1dur },
-        { name: 'Sourcify', status: sourcifyResult.status === 'fulfilled' && sourcifyResult.value ? 'success' : sourcifyResult.status === 'rejected' ? 'failed' : 'unavailable', responseMs: p1dur },
+        { name: 'BscScan', status: contractSource && !contractFromSourcify ? 'success' : contractResult.status === 'rejected' ? 'failed' : 'unavailable', responseMs: p1dur },
+        { name: 'Sourcify', status: contractFromSourcify ? 'success' : 'unavailable', responseMs: p1dur },
         { name: 'DexScreener', status: marketResult.status === 'fulfilled' && marketResult.value ? 'success' : marketResult.status === 'rejected' ? 'failed' : 'unavailable', responseMs: p1dur },
         { name: 'NodeReal', status: noderealResult.status === 'fulfilled' && noderealResult.value && noderealResult.value.length > 0 ? 'success' : noderealResult.status === 'rejected' ? 'failed' : 'unavailable', responseMs: p1dur },
       );
@@ -2438,14 +2471,13 @@ export const aiTools = {
           durationMs: p1dur,
         },
         contract: {
-          status: contractResult.status === 'fulfilled' && contractResult.value?.sourceCode ? 'completed'
+          status: contractSource?.sourceCode ? 'completed'
             : contractResult.status === 'rejected' ? 'failed' : 'skipped',
           summary: steps.find((s) => s.key === 'contract')?.summary ?? undefined,
           durationMs: p1dur,
         },
         sourcify: {
-          status: sourcifyResult.status === 'fulfilled' && sourcifyResult.value ? 'completed'
-            : sourcifyResult.status === 'rejected' ? 'failed' : 'skipped',
+          status: contractFromSourcify ? 'completed' : 'skipped',
           summary: steps.find((s) => s.key === 'sourcify')?.summary ?? undefined,
           durationMs: p1dur,
         },
