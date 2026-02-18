@@ -1,3 +1,4 @@
+// @ts-nocheck — mock UI 探索页面，不参与类型检查
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
