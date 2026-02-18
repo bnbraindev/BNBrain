@@ -46,9 +46,12 @@ import { getChatRunContext } from '@/lib/server/chat-runtime';
 import { setAnalysisProgress, type StepProgress } from '@/lib/server/analysis-progress';
 import {
   createProject as createProjectStore,
+  getProject,
   getProjectFile,
   upsertProjectFile,
+  updateProject,
   listProjectFiles as listProjectFilesStore,
+  appendProjectMemoryHistory,
   type OwnerIdentity,
 } from '@/lib/server/project-store';
 import { updateConversationProject } from '@/lib/server/conversation-store';
@@ -917,6 +920,29 @@ export const aiTools = {
             },
           }
         );
+
+        // If verification succeeded and we have a project context, update project metadata + memory
+        if (result.status === 'verified' && ctx?.projectId) {
+          try {
+            const project = await getProject(ctx.projectId);
+            if (project) {
+              const updatedMetadata = {
+                ...project.metadata,
+                verified: true,
+                verifiedAt: new Date().toISOString(),
+                verifiedAddress: normalizeAddress(address),
+              };
+              await updateProject(ctx.projectId, { metadata: updatedMetadata });
+              await appendProjectMemoryHistory(
+                ctx.projectId,
+                `Contract Verified — Address: ${normalizeAddress(address)}, Name: ${contractName}, Chain: ${chainId}`
+              );
+            }
+          } catch (e) {
+            // Non-fatal: log but don't fail the verification result
+            console.error('[verify-contract] Failed to update project metadata/memory:', e);
+          }
+        }
 
         return {
           type: 'contract_verification' as const,
@@ -1928,6 +1954,45 @@ export const aiTools = {
           return { error: 'Invalid contract address' };
         }
         const addr = normalizeAddress(address);
+
+        // Check project files first if in project context
+        const inspectCtx = getChatRunContext();
+        if (inspectCtx?.projectId) {
+          try {
+            const project = await getProject(inspectCtx.projectId);
+            if (project?.primaryContractAddress?.toLowerCase() === addr) {
+              const files = await listProjectFilesStore(inspectCtx.projectId);
+              const solFile = files.find(f => f.path.endsWith('.sol') && f.path.startsWith('contracts/'));
+              const abiFile = files.find(f => f.path.endsWith('.abi.json') && f.path.startsWith('contracts/'));
+              if (solFile) {
+                const solContent = await getProjectFile(inspectCtx.projectId, solFile.path);
+                const result: Record<string, unknown> = {
+                  address: addr,
+                  isVerified: !!project.metadata?.verified,
+                  contractName: solFile.path.replace('contracts/', '').replace('.sol', ''),
+                  source: 'project-cache',
+                  projectId: inspectCtx.projectId,
+                  files: [solFile.path, ...(abiFile ? [abiFile.path] : [])],
+                };
+                if (solContent) {
+                  result.mainSourceFile = solFile.path;
+                  result.mainSourceCode = solContent.content;
+                  result.totalSourceChars = solContent.content.length;
+                }
+                if (includeAbi && abiFile) {
+                  const abiContent = await getProjectFile(inspectCtx.projectId, abiFile.path);
+                  if (abiContent) {
+                    try { result.abi = JSON.parse(abiContent.content); } catch { /* skip */ }
+                  }
+                }
+                return result;
+              }
+            }
+          } catch (e) {
+            // Non-fatal: fall through to normal flow
+            console.warn('[inspectContract] Project file lookup failed, falling back to remote:', e);
+          }
+        }
 
         // Check cache first
         let meta = getCachedMetadata(chainId, addr);
