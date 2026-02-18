@@ -665,6 +665,9 @@ export function ToolInvocation({ toolInvocation, conversationId, locale = 'en', 
   // Server-side hidden output — the model explains the error in text instead
   if (output._hidden) return null;
 
+  // updateProjectFile results are noisy JSON — hide in chat
+  if (toolName === 'updateProjectFile') return null;
+
   // Tool returned error in output (legacy/fallback) — hidden until delay expires
   if ('error' in output && output.error) {
     if (!errorVisible) return null;

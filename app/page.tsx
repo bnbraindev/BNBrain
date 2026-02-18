@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { WalletReconnectGuard } from '@/components/wallet/reconnect-guard';
 import { useChatStore } from '@/lib/stores/chat-store';
+import { useProjectStore } from '@/lib/stores/project-store';
 import { useI18n } from '@/lib/i18n/context';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
@@ -21,6 +22,9 @@ import { useGlobalShortcuts } from '@/components/chat/hooks/use-global-shortcuts
 import { ShortcutsHelpDialog } from '@/components/chat/shortcuts-help-dialog';
 import { ChatErrorBoundary } from '@/components/chat/chat-error-boundary';
 import { SetupWizard } from '@/components/setup/setup-wizard';
+// Projects views temporarily hidden
+// import { ProjectsGridView } from '@/components/project/projects-grid-view';
+// import { ProjectDetailView } from '@/components/project/project-detail-view';
 
 /**
  * Extract conversation ID from the current URL path.
@@ -69,6 +73,39 @@ export default function Home() {
       sharedViewConversation: state.sharedViewConversation,
     }))
   );
+  const mainView = useProjectStore((s) => s.mainView);
+  const navigateToChat = useProjectStore((s) => s.navigateToChat);
+  const navigateToProjectsGrid = useProjectStore((s) => s.navigateToProjectsGrid);
+  const navigateToProjectDetail = useProjectStore((s) => s.navigateToProjectDetail);
+
+  // Restore mainView from URL on mount + listen for popstate (back/forward)
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    function syncViewFromUrl() {
+      const path = window.location.pathname;
+      const projectMatch = path.match(/^\/project\/([^/]+)$/);
+      if (path === '/projects') {
+        navigateToProjectsGrid();
+      } else if (projectMatch) {
+        navigateToProjectDetail(projectMatch[1]);
+      } else {
+        // /chat/[id], /, /share/[token] — all are chat mode
+        const store = useProjectStore.getState();
+        if (store.mainView.mode !== 'chat') {
+          navigateToChat();
+        }
+      }
+    }
+
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      syncViewFromUrl();
+    }
+
+    window.addEventListener('popstate', syncViewFromUrl);
+    return () => window.removeEventListener('popstate', syncViewFromUrl);
+  }, [navigateToProjectsGrid, navigateToProjectDetail, navigateToChat]);
+
   const lastUrlSyncId = useRef<string | null | undefined>(undefined);
   const previousShareTokenRef = useRef<string | null>(null);
   const shareToken = getShareTokenFromUrl();
@@ -134,10 +171,12 @@ export default function Home() {
     deleteConversation(activeConversationId);
   }, [activeConversationId, deleteConversation]);
 
-  // Sync URL with active conversation after hydration.
+  // Sync URL with active conversation after hydration (only in chat mode).
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!hasHydrated) return;
+    // Don't touch URL when showing projects views
+    if (useProjectStore.getState().mainView.mode !== 'chat') return;
 
     const newId = activeConversationId ?? null;
     if (lastUrlSyncId.current === newId) return;
@@ -197,7 +236,10 @@ export default function Home() {
     }
 
     if (!urlId && !activeConversationId && !draftConversation) {
-      startDraftConversation(authenticatedAddress ?? undefined);
+      // Don't auto-create draft when on project pages
+      if (useProjectStore.getState().mainView.mode === 'chat') {
+        startDraftConversation(authenticatedAddress ?? undefined);
+      }
     }
   }, [
     hasHydrated,
@@ -258,8 +300,8 @@ export default function Home() {
               </svg>
             </Button>
 
-            {/* Conversation title + dropdown */}
-            {activeConversation ? (
+            {/* Conversation title + dropdown — only in chat mode */}
+            {mainView.mode !== 'chat' ? null : activeConversation ? (
               isRenaming ? (
                 <div className="flex items-center gap-1">
                   <input
@@ -329,6 +371,7 @@ export default function Home() {
         </div>
 
         <main id="main-content" className="min-h-0 flex-1">
+          {/* Projects views temporarily hidden — always show chat */}
           <ChatErrorBoundary>
             <ChatPanel shareToken={shareToken} />
           </ChatErrorBoundary>

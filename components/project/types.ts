@@ -6,8 +6,13 @@
 export type ProjectType = 'token' | 'nft' | 'defi' | 'custom';
 export type ProjectStatus = 'draft' | 'active' | 'archived';
 export type FileUpdatedBy = 'ai' | 'user' | 'system';
-export type SidebarTab = 'projects' | 'chats';
 export type DetailTab = 'overview' | 'memory' | 'files' | 'chats';
+
+/** Controls what the main content area renders */
+export type MainView =
+  | { mode: 'chat' }
+  | { mode: 'projects-grid' }
+  | { mode: 'project-detail'; projectId: string };
 
 /** Matches spec §3.1 — projects table */
 export interface Project {

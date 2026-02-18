@@ -1115,6 +1115,21 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     sendTextWithConversationId,
   ]);
 
+  // ── Auto-send pending message from project detail input ──
+  useEffect(() => {
+    if (isReadingSharedConversation) return;
+    if (isStreaming) return;
+    if (!draftConversation) return;
+    const { consumePendingProjectMessage } = useProjectStore.getState();
+    const text = consumePendingProjectMessage();
+    if (!text) return;
+    // Small delay to let draft conversation settle
+    const timer = setTimeout(() => {
+      handleSend(text);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [draftConversation, isReadingSharedConversation, isStreaming, handleSend]);
+
   // ── Auto-send silent context when a transaction completes (3s countdown) ──
   const pendingTxCompletion = useTxCompletionStore(
     (state) => state.pending.find((e) => e.conversationId === activeConversationId)

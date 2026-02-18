@@ -21,6 +21,14 @@ const nextConfig: NextConfig = {
         destination: '/',
       },
       {
+        source: '/projects',
+        destination: '/',
+      },
+      {
+        source: '/project/:id',
+        destination: '/',
+      },
+      {
         source: '/report/:id',
         destination: '/api/report/:id',
       },

@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { SidebarTab } from '@/components/project/types';
+import type { MainView } from '@/components/project/types';
 import {
   listProjects,
   createProject as apiCreateProject,
@@ -20,9 +20,15 @@ export interface ProjectDetail {
 }
 
 interface ProjectState {
-  // Sidebar tab
-  sidebarTab: SidebarTab;
-  setSidebarTab: (tab: SidebarTab) => void;
+  // Main view navigation
+  mainView: MainView;
+  navigateToProjectsGrid: () => void;
+  navigateToProjectDetail: (id: string) => void;
+  navigateToChat: () => void;
+
+  // Pending first message from project detail input
+  pendingProjectMessage: string | null;
+  consumePendingProjectMessage: () => string | null;
 
   // Project list
   projects: ApiProject[];
@@ -69,9 +75,40 @@ function writeSessionProjectId(id: string | null): void {
   } catch { /* noop */ }
 }
 
+function pushUrl(path: string) {
+  if (typeof window === 'undefined') return;
+  if (window.location.pathname !== path) {
+    window.history.pushState(null, '', path);
+  }
+}
+
 export const useProjectStore = create<ProjectState>()((set, get) => ({
-  sidebarTab: 'chats',
-  setSidebarTab: (tab) => set({ sidebarTab: tab }),
+  mainView: { mode: 'chat' },
+
+  navigateToProjectsGrid: () => {
+    set({ mainView: { mode: 'projects-grid' } });
+    pushUrl('/projects');
+    void get().fetchProjects();
+  },
+
+  navigateToProjectDetail: (id: string) => {
+    set({ mainView: { mode: 'project-detail', projectId: id }, activeProjectId: id });
+    writeSessionProjectId(id);
+    pushUrl(`/project/${id}`);
+    void get().fetchProjectDetail(id);
+  },
+
+  navigateToChat: () => {
+    set({ mainView: { mode: 'chat' } });
+    // URL sync for chat is handled by page.tsx's existing effect
+  },
+
+  pendingProjectMessage: null,
+  consumePendingProjectMessage: () => {
+    const msg = get().pendingProjectMessage;
+    if (msg) set({ pendingProjectMessage: null });
+    return msg;
+  },
 
   projects: [],
   projectsLoading: false,
@@ -131,7 +168,8 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
   reset: () => {
     writeSessionProjectId(null);
     set({
-      sidebarTab: 'chats',
+      mainView: { mode: 'chat' },
+      pendingProjectMessage: null,
       projects: [],
       projectsLoading: false,
       projectsError: null,
