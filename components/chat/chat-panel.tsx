@@ -35,6 +35,7 @@ import {
   QUICK_ACTIONS_ZH,
   RESTORED_RUN_STALE_MS,
 } from './panel/constants';
+import { SuggestedReplies } from './panel/suggested-replies';
 import { DebugPanel } from './panel/debug-panel';
 import { useConversationSync } from './panel/hooks/use-conversation-sync';
 import { EmptyState } from './panel/empty-state';
@@ -1222,6 +1223,15 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
             <ArrowDown className="size-4 text-muted-foreground" />
           </button>
         </div>
+      )}
+
+      {!isReadingSharedConversation && !isEmpty && (
+        <SuggestedReplies
+          messages={visibleMessages}
+          isStreaming={isStreaming}
+          locale={locale}
+          onSelect={(text) => handleSend(text)}
+        />
       )}
 
       <ChatInput
