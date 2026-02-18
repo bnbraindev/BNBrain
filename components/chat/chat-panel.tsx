@@ -1212,18 +1212,20 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
         />
       )}
 
-      {!isAtBottom && !isEmpty && (
-        <div className="flex justify-center pb-2">
-          <button
-            type="button"
-            onClick={scrollToBottom}
-            className="flex size-8 items-center justify-center rounded-full border border-border bg-background shadow-md transition-all hover:bg-accent"
-            aria-label="Scroll to bottom"
-          >
-            <ArrowDown className="size-4 text-muted-foreground" />
-          </button>
-        </div>
-      )}
+      <div className={`flex justify-center pb-2 transition-all duration-200 ${
+        !isAtBottom && !isEmpty
+          ? 'translate-y-0 opacity-100'
+          : 'translate-y-4 opacity-0 pointer-events-none'
+      }`}>
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className="flex size-8 items-center justify-center rounded-full border border-border bg-background shadow-md transition-all hover:bg-accent"
+          aria-label="Scroll to bottom"
+        >
+          <ArrowDown className="size-4 text-muted-foreground" />
+        </button>
+      </div>
 
       {!isReadingSharedConversation && !isEmpty && (
         <SuggestedReplies
