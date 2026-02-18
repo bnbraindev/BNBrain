@@ -9,6 +9,11 @@ import {
   resolveRuntimeChatModel,
 } from '@/lib/server/chat-model-store';
 import type { RunLogger } from '@/lib/server/run-logger';
+import {
+  getProject,
+  getProjectFile,
+  listProjectFiles as listProjectFilesStore,
+} from '@/lib/server/project-store';
 
 /**
  * AsyncLocalStorage context for passing chatId into tool execution.
@@ -21,6 +26,10 @@ interface ChatRunContext {
   userModelId?: string | null;
   /** Structured file logger for this chat run. */
   logger?: RunLogger;
+  /** Project ID for project-mode conversations. */
+  projectId?: string;
+  /** Owner identity derived from the request, for tools that need it. */
+  owner?: { ownerType: 'wallet' | 'guest'; ownerId: string };
 }
 
 const chatRunContextStorage = new AsyncLocalStorage<ChatRunContext>();
@@ -63,6 +72,7 @@ export const ChatUserContextSchema = z
     conversationContextStatus: z.string().optional(),
     modelId: z.string().min(1).max(160).optional(),
     timestamp: z.number().optional(),
+    projectId: z.string().optional(),
   })
   .optional();
 
@@ -156,6 +166,66 @@ function buildUserContextInstruction(userContext: ChatUserContext): string {
     '- For chain-aware tools, default to runtime chainId unless user explicitly asks another chain.',
     '- For "my wallet/my balance/my approvals/my health" requests, use runtime address directly when available.',
     '- If authState is guest and request depends on wallet identity, ask user to sign in first.',
+  ];
+  return `\n\n${lines.join('\n')}`;
+}
+
+const MEMORY_CHAR_LIMIT = 16_000;
+
+export async function buildProjectContextInstruction(projectId: string | null | undefined): Promise<string> {
+  if (!projectId) return '';
+
+  const project = await getProject(projectId);
+  if (!project) return '';
+
+  const memoryFile = await getProjectFile(projectId, 'memory.md');
+  const fileList = await listProjectFilesStore(projectId);
+
+  let memoryContent = memoryFile?.content || '(empty)';
+  if (memoryContent.length > MEMORY_CHAR_LIMIT) {
+    memoryContent = memoryContent.slice(0, MEMORY_CHAR_LIMIT) +
+      '\n\n[Memory truncated. Full history in project files. Focus on current state above.]';
+  }
+
+  const contractLine = project.primaryContractAddress
+    ? `Primary Contract: ${project.primaryContractAddress} (chain ${project.primaryChainId})\n`
+    : '';
+
+  const fileListStr = fileList.length > 0
+    ? fileList.map(f => `- ${f.path} (${f.sizeBytes} bytes, updated by ${f.updatedBy})`).join('\n')
+    : '(no files)';
+
+  const lines = [
+    '',
+    '## Project Context',
+    '',
+    `You are working within project "${project.name}" (${project.projectType}).`,
+    `Project ID: ${project.id} | Short URL: /x/${project.shortId}`,
+    `Status: ${project.status}`,
+    contractLine,
+    '### Project Memory (memory.md)',
+    '',
+    memoryContent,
+    '',
+    '### Project Files',
+    '',
+    fileListStr,
+    '',
+    '### Rules for Project Mode',
+    '',
+    '1. After any state-changing operation (deploy, verify, add liquidity, lock, etc.), you MUST call updateProjectFile to update memory.md with the new state.',
+    '2. When deploying a contract, save the source code to the project files using updateProjectFile.',
+    '3. Always refer to project memory for existing context before asking the user to repeat information.',
+    '4. When the user asks about "this contract" or "my token", refer to the project\'s primary contract.',
+    '5. Keep memory.md concise and structured. Use the format defined in the project memory specification.',
+    '',
+    'When updating memory.md:',
+    '- Preserve the existing section structure (## Contract, ## History, etc.)',
+    '- Only modify relevant sections; do not rewrite the entire file',
+    '- Always update the "Last updated" timestamp in the header',
+    '- Append to ## History (newest at bottom)',
+    '- Update ## TODO by checking off completed items and adding new ones',
+    '- Keep total length under 4000 tokens; compress History if needed',
   ];
   return `\n\n${lines.join('\n')}`;
 }
@@ -266,6 +336,8 @@ export async function createChatStreamResult(params: {
 }) {
   const runtimeChainId = normalizeRuntimeChainId(params.userContext?.chainId);
   const userContextInstruction = buildUserContextInstruction(params.userContext);
+  const projectId = params.userContext?.projectId ?? null;
+  const projectContextInstruction = await buildProjectContextInstruction(projectId);
   const languageModel = await getChatModel(params.userContext?.modelId ?? null);
   const requestTools = {
     ...aiTools,
@@ -287,7 +359,7 @@ export async function createChatStreamResult(params: {
 
   const doStream = () => streamText({
     model: languageModel,
-    system: systemPrompt + userContextInstruction,
+    system: systemPrompt + userContextInstruction + projectContextInstruction,
     messages: params.modelMessages,
     tools: requestTools,
     maxOutputTokens: 16384,
@@ -295,10 +367,17 @@ export async function createChatStreamResult(params: {
     abortSignal: params.abortSignal,
   });
 
-  // Wrap in AsyncLocalStorage so tools can access chatId, userModelId, and logger
+  // Wrap in AsyncLocalStorage so tools can access chatId, userModelId, logger, projectId, and owner
+  const owner = normalizeOwnerFromRequest(undefined, params.userContext) ?? undefined;
   if (params.chatId) {
     return chatRunContextStorage.run(
-      { chatId: params.chatId, userModelId: params.userContext?.modelId, logger: params.logger },
+      {
+        chatId: params.chatId,
+        userModelId: params.userContext?.modelId,
+        logger: params.logger,
+        projectId: projectId ?? undefined,
+        owner: owner ?? undefined,
+      },
       doStream
     );
   }

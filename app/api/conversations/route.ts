@@ -138,8 +138,12 @@ export async function GET(req: Request) {
   const owner = normalizeOwner(parsedOwner.data);
   const authError = await assertWalletOwnerAuthorized(req, owner);
   if (authError) return authError;
+
+  // Optional projectId filter
+  const projectId = searchParams.get('projectId') || undefined;
+
   try {
-    const conversations = await listConversationsByOwner(owner);
+    const conversations = await listConversationsByOwner(owner, { projectId });
     return Response.json({ conversations });
   } catch (error) {
     console.error('[conversations GET]', error);

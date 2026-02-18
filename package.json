@@ -17,6 +17,8 @@
     "test:solidity": "tsx -r tsconfig-paths/register tests/e2e/solidity-compile.test.ts",
     "test:tool-chain": "tsx -r tsconfig-paths/register tests/e2e/tool-chain.test.ts",
     "test:full-deploy": "tsx -r tsconfig-paths/register tests/e2e/full-deploy.test.ts",
+    "test:projects": "tsx .claude/tests/e2e/projects-crud.test.ts",
+    "test:project-files": "tsx .claude/tests/e2e/project-files.test.ts",
     "test:e2e": "npm run test:services && npm run test:resume-guard && npm run test:tools && npm run test:solidity && npm run test:chat && npm run test:conversations && npm run test:share-fork && npm run test:wallet-errors && npm run test:tool-chain",
     "db:setup": "tsx -r tsconfig-paths/register scripts/setup-db.ts",
     "worker:chat": "tsx -r tsconfig-paths/register scripts/chat-run-worker.ts"

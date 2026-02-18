@@ -218,7 +218,7 @@ export function ProjectChatView({
               <div className="h-4 w-px bg-border/50" />
               <Shield className="size-4 text-primary" />
               <span className="text-sm font-medium text-foreground">{project.name}</span>
-              <TypeBadge type={project.type} />
+              <TypeBadge type={project.projectType} />
             </div>
           </div>
           {/* Collapsible memory context */}

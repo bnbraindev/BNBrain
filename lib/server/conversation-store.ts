@@ -128,11 +128,20 @@ function parseMessages(raw: unknown): StoredMessage[] {
 }
 
 export async function listConversationsByOwner(
-  ownerInput: ConversationOwner
+  ownerInput: ConversationOwner,
+  options?: { projectId?: string }
 ): Promise<Conversation[]> {
   await ensureDatabaseSchema();
   const owner = normalizeOwner(ownerInput);
   const pool = getDbPool();
+
+  const conditions = ['c.owner_type = $1', 'c.owner_id = $2'];
+  const values: unknown[] = [owner.ownerType, owner.ownerId];
+
+  if (options?.projectId) {
+    conditions.push(`c.project_id = $${values.length + 1}`);
+    values.push(options.projectId);
+  }
 
   const { rows } = await pool.query(
     `
@@ -168,12 +177,11 @@ export async function listConversationsByOwner(
       FROM conversations c
       LEFT JOIN conversation_messages m
         ON m.conversation_id = c.id
-      WHERE c.owner_type = $1
-        AND c.owner_id = $2
+      WHERE ${conditions.join(' AND ')}
       GROUP BY c.id
       ORDER BY c.is_starred DESC, c.updated_at DESC
     `,
-    [owner.ownerType, owner.ownerId]
+    values
   );
 
   return rows.map((row) => parseConversationRow(row as Record<string, unknown>));
@@ -526,6 +534,43 @@ export async function ensureConversationShareToken(
   if (rows.length === 0) return null;
   const shareToken = rows[0]?.shareToken;
   return typeof shareToken === 'string' && shareToken ? shareToken : null;
+}
+
+export async function updateConversationProject(
+  ownerInput: ConversationOwner,
+  conversationId: string,
+  projectId: string | null
+): Promise<boolean> {
+  await ensureDatabaseSchema();
+  const owner = normalizeOwner(ownerInput);
+  const pool = getDbPool();
+  const now = Date.now();
+  const { rowCount } = await pool.query(
+    `
+      UPDATE conversations
+      SET project_id = $4,
+          updated_at = $5
+      WHERE id = $1
+        AND owner_type = $2
+        AND owner_id = $3
+    `,
+    [conversationId, owner.ownerType, owner.ownerId, projectId, now]
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+export async function getConversationProjectId(
+  conversationId: string
+): Promise<string | null> {
+  await ensureDatabaseSchema();
+  const pool = getDbPool();
+  const { rows } = await pool.query(
+    'SELECT project_id FROM conversations WHERE id = $1 LIMIT 1',
+    [conversationId]
+  );
+  if (rows.length === 0) return null;
+  const projectId = (rows[0] as Record<string, unknown>).project_id;
+  return typeof projectId === 'string' && projectId ? projectId : null;
 }
 
 export async function clearConversationShareToken(

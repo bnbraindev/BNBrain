@@ -6,8 +6,15 @@ import {
   upsertTxRecord,
 } from '@/lib/server/tx-state-store';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
-import { getConversationByOwnerAndId } from '@/lib/server/conversation-store';
+import { getConversationByOwnerAndId, getConversationProjectId } from '@/lib/server/conversation-store';
 import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
+import {
+  getProject,
+  updateProject,
+  updateProjectMemorySection,
+  appendProjectMemoryHistory,
+} from '@/lib/server/project-store';
+import { getPublicClient } from '@/lib/chain/server-client';
 
 export const runtime = 'nodejs';
 
@@ -66,6 +73,100 @@ async function assertConversationOwnership(
     );
   }
   return null;
+}
+
+/**
+ * After a contract_deploy tx succeeds, auto-update the associated project:
+ * - Set status to 'active'
+ * - Set primary_contract_address + primary_chain_id
+ * - Append deployment info to metadata.contracts[]
+ * - Update memory.md Contract section and History
+ *
+ * Runs fire-and-forget: failures are logged but never block the tx-state response.
+ */
+async function handleDeploySuccessProjectUpdate(
+  conversationId: string,
+  txKey: string,
+  hash: string,
+  chainId: number | undefined
+): Promise<void> {
+  try {
+    const projectId = await getConversationProjectId(conversationId);
+    if (!projectId) return; // Not a project conversation — skip
+
+    const project = await getProject(projectId);
+    if (!project) return;
+
+    // Resolve contract address from on-chain receipt
+    const effectiveChainId = chainId ?? 56;
+    let contractAddress: string | null = null;
+    try {
+      const client = await getPublicClient(effectiveChainId);
+      const receipt = await client.getTransactionReceipt({
+        hash: hash as `0x${string}`,
+      });
+      contractAddress = receipt.contractAddress ?? null;
+    } catch (err) {
+      console.warn('[tx-state] Failed to fetch deploy receipt for project update:', err);
+    }
+
+    // Build metadata updates
+    const contracts = Array.isArray(project.metadata.contracts)
+      ? [...(project.metadata.contracts as unknown[])]
+      : [];
+    contracts.push({
+      address: contractAddress,
+      chainId: effectiveChainId,
+      txHash: hash,
+      deployedAt: new Date().toISOString(),
+      txKey,
+    });
+
+    await updateProject(projectId, {
+      status: 'active',
+      primaryContractAddress: contractAddress,
+      primaryChainId: effectiveChainId,
+      metadata: { ...project.metadata, contracts },
+    });
+
+    // Update memory.md — Contract section + History
+    if (contractAddress) {
+      try {
+        await updateProjectMemorySection(projectId, 'Contract', {
+          Chain: `${effectiveChainId}`,
+          Address: contractAddress,
+          Status: 'Active (deployed)',
+        });
+      } catch (memErr) {
+        console.warn('[tx-state] Failed to update memory.md Contract section:', memErr);
+      }
+
+      // Re-fetch memory for appendProjectMemoryHistory (version may have changed)
+      try {
+        await appendProjectMemoryHistory(
+          projectId,
+          `Contract deployed at ${contractAddress} on chain ${effectiveChainId} (tx: ${hash.slice(0, 10)}…)`
+        );
+      } catch (histErr) {
+        console.warn('[tx-state] Failed to append memory.md History:', histErr);
+      }
+    } else {
+      try {
+        await appendProjectMemoryHistory(
+          projectId,
+          `Contract deploy confirmed on chain ${effectiveChainId} (tx: ${hash.slice(0, 10)}…)`
+        );
+      } catch (histErr) {
+        console.warn('[tx-state] Failed to append memory.md History:', histErr);
+      }
+    }
+
+    console.log(
+      `[tx-state] Project ${projectId} updated after deploy success: address=${contractAddress ?? 'unknown'}, chain=${effectiveChainId}`
+    );
+  } catch (err) {
+    console.error('[tx-state] Failed to update project after deploy success:', err);
+  }
 }
 
 const TxStateUpsertSchema = z.object({
@@ -162,6 +263,21 @@ export async function POST(req: Request) {
       ...parsed.data,
       hash: parsed.data.hash as `0x${string}` | undefined,
     });
+
+    // Fire-and-forget: if this is a contract deploy success, update the associated project
+    if (
+      parsed.data.status === 'success' &&
+      parsed.data.txKey.includes('contract_deploy') &&
+      parsed.data.hash
+    ) {
+      void handleDeploySuccessProjectUpdate(
+        parsed.data.conversationId,
+        parsed.data.txKey,
+        parsed.data.hash,
+        parsed.data.chainId
+      );
+    }
+
     return Response.json({ record });
   } catch (error) {
     console.error('[tx-state POST]', error);

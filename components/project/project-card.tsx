@@ -17,7 +17,7 @@ export function ProjectCard({
   onSelect: () => void;
   onOpenContract?: () => void;
 }) {
-  const meta = PROJECT_TYPE_META[project.type];
+  const meta = PROJECT_TYPE_META[project.projectType];
   const Icon = meta.icon;
 
   return (
@@ -35,7 +35,7 @@ export function ProjectCard({
         </div>
         <div className="flex items-center gap-1.5">
           <StatusBadge status={project.status} />
-          <TypeBadge type={project.type} />
+          <TypeBadge type={project.projectType} />
         </div>
       </div>
 

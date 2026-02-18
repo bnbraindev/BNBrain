@@ -97,7 +97,7 @@ export function ProjectSidebar({
               <Plus className="size-3.5" /> New Project
             </button>
             {projects.map((p) => {
-              const meta = PROJECT_TYPE_META[p.type];
+              const meta = PROJECT_TYPE_META[p.projectType];
               const Icon = meta.icon;
               return (
                 <button
