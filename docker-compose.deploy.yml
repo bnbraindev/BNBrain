@@ -15,7 +15,7 @@ services:
       retries: 5
 
   app:
-    image: ghcr.io/bnbraindev/BNBrain:latest
+    image: ghcr.io/bnbraindev/bnbrain:latest
     restart: unless-stopped
     ports:
       - "3000:3000"

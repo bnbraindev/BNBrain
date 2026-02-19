@@ -1,1 +1,1 @@
-FROM ghcr.io/bnbraindev/BNBrain:latest
+FROM ghcr.io/bnbraindev/bnbrain:latest
