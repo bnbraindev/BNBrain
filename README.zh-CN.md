@@ -8,7 +8,7 @@
 
 **在线演示**: [https://app.bnbrain.dev](https://app.bnbrain.dev) | **仓库**: [github.com/bnbraindev/BNBrain](https://github.com/bnbraindev/BNBrain)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QoOIlX)
 
 ---
 
@@ -114,7 +114,7 @@ BNBrain 是一个能在 BNB Chain 上**执行真实操作**的 AI 代理。不�
 
 ### 方式一：一键部署到 Railway（推荐）
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QoOIlX)
 
 1. 点击按钮 — Railway 自动创建应用 + PostgreSQL 数据库
 2. 部署在 1 分钟内完成（预构建镜像）

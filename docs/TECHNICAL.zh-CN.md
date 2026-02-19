@@ -156,7 +156,7 @@ sequenceDiagram
 
 ### 方式一：Railway 一键部署
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QoOIlX)
 
 1. 点击部署按钮 — Railway 自动创建应用 + PostgreSQL
 2. 等待约 3 分钟完成构建

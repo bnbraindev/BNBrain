@@ -156,7 +156,7 @@ The chat system uses a **worker-based architecture** that ensures AI continues p
 
 ### Option 1: Railway (One-Click Deploy)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QoOIlX)
 
 1. Click the deploy button — Railway provisions app + PostgreSQL automatically
 2. Wait ~3 minutes for the build

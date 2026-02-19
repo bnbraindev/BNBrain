@@ -8,7 +8,7 @@ English | [中文](README.zh-CN.md)
 
 **Live Demo**: [https://app.bnbrain.dev](https://app.bnbrain.dev) | **Repo**: [github.com/bnbraindev/BNBrain](https://github.com/bnbraindev/BNBrain)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QoOIlX)
 
 ---
 
@@ -114,7 +114,7 @@ All actions execute on **BSC Mainnet** and **opBNB**. See [`bsc.address`](bsc.ad
 
 ### Option 1: Deploy to Railway (Recommended)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QoOIlX)
 
 1. Click the button — Railway provisions app + PostgreSQL automatically
 2. Deploy completes in under 1 minute (pre-built image)
