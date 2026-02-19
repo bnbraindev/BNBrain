@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   Shield,
   ChevronDown,
-  SkipForward,
   Eye,
   EyeOff,
   User,
@@ -81,13 +80,18 @@ interface SetupWizardProps {
   onComplete: () => void;
 }
 
+/* ─── Defaults ─────────────────────────────────────────────── */
+
+const DEFAULT_BASE_URL = 'https://api.anthropic.com';
+const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
+
 /* ─── Component ────────────────────────────────────────────── */
 
 export function SetupWizard({ onComplete }: SetupWizardProps) {
   const { locale } = useI18n();
   const t = locale === 'zh' ? zh : en;
 
-  const [step, setStep] = useState(0); // 0: Account, 1: AI+Services, 2: Done
+  const [step, setStep] = useState(0); // 0: Account, 1: AI Model, 2: Services, 3: Done
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [saving, setSaving] = useState(false);
   const [autoConfig, setAutoConfig] = useState<AutoConfigData | null>(null);
@@ -105,8 +109,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [displayName, setDisplayName] = useState('');
   const [protocol, setProtocol] = useState<'anthropic' | 'openai'>('anthropic');
   const [apiKey, setApiKey] = useState('');
-  const [baseUrl, setBaseUrl] = useState('https://api.anthropic.com');
-  const [model, setModel] = useState('claude-sonnet-4-5-20250929');
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL);
+  const [model, setModel] = useState(DEFAULT_MODEL);
   const [authMode, setAuthMode] = useState<'x-api-key' | 'bearer'>('x-api-key');
   const [modelValidation, setModelValidation] = useState<ValidationState>({
     status: 'idle',
@@ -159,6 +163,11 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     message: '',
   });
 
+  // Auto-test & missing-config warning
+  const [needsAutoTest, setNeedsAutoTest] = useState(false);
+  const [showMissingWarning, setShowMissingWarning] = useState(false);
+  const [missingWarnings, setMissingWarnings] = useState<{ label: string; critical: boolean }[]>([]);
+
   // Load initial status
   useEffect(() => {
     fetch('/api/setup/status')
@@ -204,18 +213,19 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       if (s?.serper?.apiKey && !serperKey) setSerperKey(s.serper.apiKey);
       if (s?.steel?.apiKey && !steelKey) setSteelKey(s.steel.apiKey);
       if (s?.steel?.apiUrl && !steelUrl) setSteelUrl(s.steel.apiUrl);
-      if (s?.siwe?.domain && !siweDomain) setSiweDomain(s.siwe.domain);
+      if (!siweDomain) setSiweDomain(typeof window !== 'undefined' ? window.location.hostname : '');
       if (s?.siwe?.allowedChainIds && !siweChainIds) setSiweChainIds(s.siwe.allowedChainIds);
       if (s?.rpc?.url56 && !rpcUrl56) setRpcUrl56(s.rpc.url56);
       if (s?.rpc?.url204 && !rpcUrl204) setRpcUrl204(s.rpc.url204);
       const m = data.model;
       if (m?.apiKey && !apiKey) setApiKey(m.apiKey);
-      if (m?.baseUrl && !baseUrl) setBaseUrl(m.baseUrl);
-      if (m?.providerModelId && !model) setModel(m.providerModelId);
+      if (m?.baseUrl && (baseUrl === DEFAULT_BASE_URL || !baseUrl)) setBaseUrl(m.baseUrl);
+      if (m?.providerModelId && (model === DEFAULT_MODEL || !model)) setModel(m.providerModelId);
       if (m?.displayName && !displayName) setDisplayName(m.displayName);
       if (m?.protocol === 'openai' || m?.protocol === 'anthropic') setProtocol(m.protocol);
       if (m?.authMode === 'bearer') setAuthMode('bearer');
       setAutoConfigApplied(true);
+      setNeedsAutoTest(true);
     },
     [
       autoConfigApplied,
@@ -414,6 +424,21 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     }
   }, [rpcUrl56, rpcUrl204, t]);
 
+  // ── Auto-test after auto-config ───────────────────────────
+  useEffect(() => {
+    if (!needsAutoTest) return;
+    setNeedsAutoTest(false);
+    if (apiKey && baseUrl && model && !status?.hasModels) validateModel();
+    if (goplusKey && goplusSecret) validateGoPlus();
+    if (bscscanKey) validateBscScan();
+    if (noderealKey) validateNodereal();
+    if (serperKey) validateSerper();
+    if (steelKey) validateSteel();
+    if (siweDomain || siweChainIds) validateSiwe();
+    if (rpcUrl56 || rpcUrl204) validateRpc();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsAutoTest]);
+
   // ── Save & Complete ─────────────────────────────────────
 
   const handleComplete = useCallback(async () => {
@@ -505,7 +530,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             password: adminPassword,
           }),
         });
-        setStep(2);
+        setStep(3);
         setTimeout(onComplete, 2500);
       } else {
         alert(data.error || 'Setup save failed');
@@ -541,6 +566,39 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     onComplete,
   ]);
 
+  const handleCompleteClick = useCallback(() => {
+    const warnings: { label: string; critical: boolean }[] = [];
+
+    if (!status?.hasModels && modelValidation.status !== 'success') {
+      warnings.push({ label: t.warningAI, critical: true });
+    }
+    if ((!goplusKey || !goplusSecret) && !status?.envPreloaded.hasGoplusKey) {
+      warnings.push({ label: t.warningGoPlus, critical: false });
+    }
+    if (!bscscanKey && !status?.envPreloaded.hasBscscanKey) {
+      warnings.push({ label: t.warningBscScan, critical: false });
+    }
+    if (!noderealKey && !status?.envPreloaded.hasNoderealKey) {
+      warnings.push({ label: t.warningNodeReal, critical: false });
+    }
+    if (!serperKey && !status?.envPreloaded.hasSerperKey) {
+      warnings.push({ label: t.warningSerper, critical: false });
+    }
+    if (!steelKey && !status?.envPreloaded.hasSteelKey) {
+      warnings.push({ label: t.warningSteel, critical: false });
+    }
+
+    if (warnings.length > 0) {
+      setMissingWarnings(warnings);
+      setShowMissingWarning(true);
+    } else {
+      handleComplete();
+    }
+  }, [
+    status, modelValidation, goplusKey, goplusSecret, bscscanKey,
+    noderealKey, serperKey, steelKey, t, handleComplete,
+  ]);
+
   // ── Render helpers ──────────────────────────────────────
 
   const usernameValid = adminUsername.trim().length >= 2;
@@ -549,9 +607,6 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const walletValid =
     !adminWalletAddress.trim() || /^0x[0-9a-fA-F]{40}$/.test(adminWalletAddress.trim());
   const canProceedFromStep0 = usernameValid && passwordValid && passwordMatch && walletValid;
-
-  const canProceedFromStep1 =
-    status?.hasModels || modelValidation.status === 'success';
 
   const renderValidationBadge = (v: ValidationState) => {
     if (v.status === 'idle') return null;
@@ -592,24 +647,25 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
   const steps = [
     { label: t.stepAccount, done: step > 0 },
-    { label: t.stepAIServices, done: step > 1 },
-    { label: t.stepDone, done: step === 2 },
+    { label: t.stepAI, done: step > 1 },
+    { label: t.stepServices, done: step > 2 },
+    { label: t.stepDone, done: step === 3 },
   ];
 
   // ── UI ──────────────────────────────────────────────────
 
   return (
-    <div className="flex h-[100dvh] flex-col items-center justify-start overflow-y-auto bg-background px-4 py-8 sm:py-12">
+    <div className="flex h-[100dvh] flex-col items-center justify-start overflow-y-auto bg-background px-4 py-4 sm:py-6">
       {/* Header */}
-      <div className="mb-8 flex w-full max-w-xl items-start justify-between">
-        <div className="flex flex-col items-center gap-3 text-center flex-1 animate-hero-entrance">
-          <div className="relative flex size-16 items-center justify-center rounded-2xl bg-primary/10 animate-shield-glow">
-            <Shield className="size-8 text-primary" />
+      <div className="mb-4 flex w-full max-w-xl items-start justify-between">
+        <div className="flex flex-col items-center gap-2 text-center flex-1 animate-hero-entrance">
+          <div className="relative flex size-10 items-center justify-center rounded-xl bg-primary/10 animate-shield-glow">
+            <Shield className="size-5 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
+          <h1 className="text-xl font-bold text-foreground">
             BNBrain
           </h1>
-          <p className="max-w-md text-sm text-muted-foreground">
+          <p className="max-w-md text-xs text-muted-foreground">
             {t.subtitle}
           </p>
         </div>
@@ -619,7 +675,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       </div>
 
       {/* Step indicator */}
-      <div className="mb-8 flex items-center gap-2 sm:gap-3">
+      <div className="mb-4 flex items-center gap-2 sm:gap-3">
         {steps.map((s, i) => (
           <div key={i} className="flex items-center gap-2 sm:gap-3">
             <button
@@ -786,29 +842,32 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           </div>
         )}
 
-        {/* ── Step 1: AI + Services ───────────────────── */}
+        {/* ── Step 1: AI Model ────────────────────────── */}
         {step === 1 && (
-          <div className="space-y-6 animate-message-in">
+          <div className="space-y-4 animate-message-in">
             {/* Auto-config banner */}
             {autoConfigLoading && (
-              <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+              <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
                 <Loader2 className="size-4 animate-spin" />
                 {t.autoConfigLoading}
               </div>
             )}
             {autoConfig && !autoConfigLoading && (
-              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-400">
-                <CheckCircle2 className="size-4" />
-                {t.autoConfigApplied}
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+                <div className="flex items-center gap-2 text-sm text-emerald-400">
+                  <CheckCircle2 className="size-4 shrink-0" />
+                  {t.autoConfigApplied}
+                </div>
+                <p className="mt-1 pl-6 text-xs text-emerald-400/70">{t.autoConfigNote}</p>
               </div>
             )}
 
             {/* AI Model Card */}
-            <div className="rounded-2xl border border-border bg-card/80 p-5 shadow-lg backdrop-blur-lg sm:p-6">
+            <div className="rounded-2xl border border-border bg-card/80 p-4 shadow-lg backdrop-blur-lg sm:p-5">
               <h2 className="mb-1 text-lg font-semibold text-foreground">
                 {t.aiTitle}
               </h2>
-              <p className="mb-5 text-sm text-muted-foreground">
+              <p className="mb-4 text-sm text-muted-foreground">
                 {t.aiDesc}
               </p>
 
@@ -1007,18 +1066,38 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               )}
             </div>
 
+            {/* Navigation */}
+            <div className="flex justify-between gap-3">
+              <Button variant="ghost" onClick={() => setStep(0)} className="gap-1.5">
+                <ArrowLeft className="size-4" />
+                {t.back}
+              </Button>
+              <Button
+                onClick={() => setStep(2)}
+                className="gap-1.5"
+              >
+                {t.next}
+                <ArrowRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Services ────────────────────────── */}
+        {step === 2 && (
+          <div className="space-y-4 animate-message-in">
             {/* Services Card */}
-            <div className="rounded-2xl border border-border bg-card/80 p-5 shadow-lg backdrop-blur-lg sm:p-6">
+            <div className="rounded-2xl border border-border bg-card/80 p-4 shadow-lg backdrop-blur-lg sm:p-5">
               <h2 className="mb-1 text-lg font-semibold text-foreground">
                 {t.servicesTitle}
               </h2>
-              <p className="mb-5 text-sm text-muted-foreground">
+              <p className="mb-3 text-sm text-muted-foreground">
                 {t.servicesDesc}
               </p>
 
               {/* GoPlus */}
-              <div className="mb-6">
-                <div className="mb-3 flex items-center justify-between">
+              <div className="mb-4">
+                <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">
                     GoPlus Security{renderPreConfigBadge('goplus')}
                   </h3>
@@ -1026,13 +1105,12 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                     {t.getKey}<ExternalLink className="size-3" />
                   </a>
                 </div>
-                <p className="mb-3 text-xs text-muted-foreground">{t.goplusDesc}</p>
                 {status?.envPreloaded.hasGoplusKey && (
-                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+                  <div className="mb-2 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400">
                     <CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}
                   </div>
                 )}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <input type="text" value={goplusKey} onChange={(e) => { setGoplusKey(e.target.value); setGoplusValidation({ status: 'idle', message: '' }); }} placeholder="App Key" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
                   <input type="password" value={goplusSecret} onChange={(e) => { setGoplusSecret(e.target.value); setGoplusValidation({ status: 'idle', message: '' }); }} placeholder="App Secret" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
                   <div className="flex items-center justify-between">
@@ -1044,19 +1122,18 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                 </div>
               </div>
 
-              <div className="sidebar-gradient-sep mb-6" />
+              <div className="sidebar-gradient-sep mb-4" />
 
               {/* BscScan */}
-              <div>
-                <div className="mb-3 flex items-center justify-between">
+              <div className="mb-4">
+                <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">BscScan / Etherscan{renderPreConfigBadge('bscscan')}</h3>
                   <a href="https://etherscan.io/myapikey" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">{t.getKey}<ExternalLink className="size-3" /></a>
                 </div>
-                <p className="mb-3 text-xs text-muted-foreground">{t.bscscanDesc}</p>
                 {status?.envPreloaded.hasBscscanKey && (
-                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
+                  <div className="mb-2 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
                 )}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <input type="text" value={bscscanKey} onChange={(e) => { setBscscanKey(e.target.value); setBscscanValidation({ status: 'idle', message: '' }); }} placeholder="API Key" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
                   <div className="flex items-center justify-between">
                     <Button onClick={validateBscScan} disabled={(!bscscanKey && !status?.envPreloaded.hasBscscanKey) || bscscanValidation.status === 'testing'} variant="outline" size="sm" className="gap-1.5">
@@ -1067,19 +1144,18 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                 </div>
               </div>
 
-              <div className="sidebar-gradient-sep mb-6" />
+              <div className="sidebar-gradient-sep mb-4" />
 
               {/* NodeReal */}
-              <div>
-                <div className="mb-3 flex items-center justify-between">
+              <div className="mb-4">
+                <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">NodeReal (BSC Enhanced){renderPreConfigBadge('nodereal')}</h3>
                   <a href="https://nodereal.io/meganode" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">{t.getKey}<ExternalLink className="size-3" /></a>
                 </div>
-                <p className="mb-3 text-xs text-muted-foreground">{t.noderealDesc}</p>
                 {status?.envPreloaded.hasNoderealKey && (
-                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
+                  <div className="mb-2 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
                 )}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <input type="text" value={noderealKey} onChange={(e) => { setNoderealKey(e.target.value); setNoderealValidation({ status: 'idle', message: '' }); }} placeholder="API Key" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
                   <div className="flex items-center justify-between">
                     <Button onClick={validateNodereal} disabled={(!noderealKey && !status?.envPreloaded.hasNoderealKey) || noderealValidation.status === 'testing'} variant="outline" size="sm" className="gap-1.5">
@@ -1090,19 +1166,18 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                 </div>
               </div>
 
-              <div className="sidebar-gradient-sep mb-6" />
+              <div className="sidebar-gradient-sep mb-4" />
 
               {/* Serper */}
-              <div className="mb-6">
-                <div className="mb-3 flex items-center justify-between">
+              <div className="mb-4">
+                <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">Serper (Google Search){renderPreConfigBadge('serper')}</h3>
                   <a href="https://serper.dev/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">{t.getKey}<ExternalLink className="size-3" /></a>
                 </div>
-                <p className="mb-3 text-xs text-muted-foreground">{t.serperDesc}</p>
                 {status?.envPreloaded.hasSerperKey && (
-                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
+                  <div className="mb-2 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
                 )}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <input type="password" value={serperKey} onChange={(e) => { setSerperKey(e.target.value); setSerperValidation({ status: 'idle', message: '' }); }} placeholder="API Key" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
                   <div className="flex items-center justify-between">
                     <Button onClick={validateSerper} disabled={(!serperKey && !status?.envPreloaded.hasSerperKey) || serperValidation.status === 'testing'} variant="outline" size="sm" className="gap-1.5">
@@ -1113,19 +1188,18 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                 </div>
               </div>
 
-              <div className="sidebar-gradient-sep mb-6" />
+              <div className="sidebar-gradient-sep mb-4" />
 
               {/* Steel */}
               <div>
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">Steel (Web Scraper){renderPreConfigBadge('steel')}</h3>
                   <a href="https://steel.dev/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">{t.getKey}<ExternalLink className="size-3" /></a>
                 </div>
-                <p className="mb-3 text-xs text-muted-foreground">{t.steelDesc}</p>
                 {status?.envPreloaded.hasSteelKey && (
-                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
+                  <div className="mb-2 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
                 )}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <input type="password" value={steelKey} onChange={(e) => { setSteelKey(e.target.value); setSteelValidation({ status: 'idle', message: '' }); }} placeholder="API Key" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
                   <input type="text" value={steelUrl} onChange={(e) => { setSteelUrl(e.target.value); setSteelValidation({ status: 'idle', message: '' }); }} placeholder="https://api.steel.dev" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
                   <div className="flex items-center justify-between">
@@ -1138,20 +1212,20 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               </div>
 
               {/* Advanced: SIWE + RPC */}
-              <details className="group mt-6 rounded-xl border border-border/50 bg-card/40">
-                <summary className="flex cursor-pointer items-center gap-1.5 px-4 py-3 text-xs font-medium text-muted-foreground hover:text-foreground">
+              <details className="group mt-4 rounded-xl border border-border/50 bg-card/40">
+                <summary className="flex cursor-pointer items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground">
                   <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
                   {t.advancedServices}
                 </summary>
-                <div className="space-y-6 px-4 pb-4 pt-2">
+                <div className="space-y-4 px-4 pb-4 pt-2">
                   {/* SIWE */}
                   <div>
                     <h3 className="mb-1 text-sm font-semibold text-foreground">SIWE ({t.siweLabel})</h3>
-                    <p className="mb-3 text-xs text-muted-foreground">{t.siweDesc}</p>
+                    <p className="mb-2 text-xs text-muted-foreground">{t.siweDesc}</p>
                     {(status?.envPreloaded.hasSiweDomain || status?.envPreloaded.hasSiweChainIds) && (
-                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
+                      <div className="mb-2 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
                     )}
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <input type="text" value={siweDomain} onChange={(e) => { setSiweDomain(e.target.value); setSiweValidation({ status: 'idle', message: '' }); }} placeholder={t.siweDomainPlaceholder} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
                       <input type="text" value={siweChainIds} onChange={(e) => { setSiweChainIds(e.target.value); setSiweValidation({ status: 'idle', message: '' }); }} placeholder={t.siweChainIdsPlaceholder} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
                       <div className="flex items-center justify-between">
@@ -1168,11 +1242,11 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                   {/* RPC URLs */}
                   <div>
                     <h3 className="mb-1 text-sm font-semibold text-foreground">{t.rpcTitle}</h3>
-                    <p className="mb-3 text-xs text-muted-foreground">{t.rpcDesc}</p>
+                    <p className="mb-2 text-xs text-muted-foreground">{t.rpcDesc}</p>
                     {status?.envPreloaded.hasRpcUrls && (
-                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
+                      <div className="mb-2 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"><CheckCircle2 className="size-3.5 shrink-0" />{t.detectedFromEnv}</div>
                     )}
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div>
                         <label className="mb-1 block text-xs text-muted-foreground">BSC Mainnet (Chain 56)</label>
                         <input type="text" value={rpcUrl56} onChange={(e) => { setRpcUrl56(e.target.value); setRpcValidation({ status: 'idle', message: '' }); }} placeholder="https://bsc-dataseed.binance.org" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:outline-none md:text-sm" />
@@ -1195,35 +1269,24 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
             {/* Navigation */}
             <div className="flex justify-between gap-3">
-              <Button variant="ghost" onClick={() => setStep(0)} className="gap-1.5">
+              <Button variant="ghost" onClick={() => setStep(1)} className="gap-1.5">
                 <ArrowLeft className="size-4" />
                 {t.back}
               </Button>
-              <div className="flex gap-3">
-                <Button
-                  variant="ghost"
-                  onClick={handleComplete}
-                  disabled={saving}
-                  className="gap-1.5 text-muted-foreground"
-                >
-                  <SkipForward className="size-4" />
-                  {t.skipAndFinish}
-                </Button>
-                <Button
-                  onClick={handleComplete}
-                  disabled={saving || !canProceedFromStep1}
-                  className="gap-1.5"
-                >
-                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-                  {t.completeSetup}
-                </Button>
-              </div>
+              <Button
+                onClick={handleCompleteClick}
+                disabled={saving}
+                className="gap-1.5"
+              >
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                {t.completeSetup}
+              </Button>
             </div>
           </div>
         )}
 
-        {/* ── Step 2: Done ───────────────────────────── */}
-        {step === 2 && (
+        {/* ── Step 3: Done ───────────────────────────── */}
+        {step === 3 && (
           <div className="flex flex-col items-center gap-4 py-12 text-center animate-message-in">
             <div className="flex size-20 items-center justify-center rounded-full bg-emerald-500/10">
               <CheckCircle2 className="size-10 text-emerald-400" />
@@ -1245,6 +1308,35 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           </div>
         )}
       </div>
+
+      {/* Missing config warning dialog */}
+      {showMissingWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-message-in">
+          <div className="mx-4 w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <h3 className="mb-2 text-lg font-semibold text-foreground">{t.warningTitle}</h3>
+            <p className="mb-4 text-sm text-muted-foreground">{t.warningDesc}</p>
+            <ul className="mb-5 space-y-2">
+              {missingWarnings.map((w, i) => (
+                <li key={i} className={cn(
+                  'flex items-start gap-2 text-sm',
+                  w.critical ? 'text-red-400' : 'text-amber-400'
+                )}>
+                  <XCircle className="mt-0.5 size-4 shrink-0" />
+                  <span>{w.label}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setShowMissingWarning(false)}>
+                {t.warningCancel}
+              </Button>
+              <Button onClick={() => { setShowMissingWarning(false); handleComplete(); }}>
+                {t.warningConfirm}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1254,7 +1346,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 const en = {
   subtitle: 'Welcome! Let\u2019s configure your instance before getting started.',
   stepAccount: 'Admin Account',
-  stepAIServices: 'AI & Services',
+  stepAI: 'AI Model',
+  stepServices: 'Services',
   stepDone: 'Ready',
   accountTitle: 'Admin Account',
   accountDesc: 'Create an administrator account for managing BNBrain. You can optionally add an admin wallet address for wallet-based login.',
@@ -1297,27 +1390,38 @@ const en = {
   advancedServices: 'Advanced: Wallet Login & RPC Endpoints',
   siweLabel: 'Wallet Login',
   siweDesc: 'Configure SIWE wallet login domain and allowed chain IDs.',
-  siweDomainPlaceholder: 'Domain, e.g. app.bnbrain.dev',
+  siweDomainPlaceholder: 'Domain, e.g. your-domain.com',
   siweChainIdsPlaceholder: 'Chain IDs, e.g. 56,204',
   rpcTitle: 'RPC Endpoints',
   rpcDesc: 'Custom RPC endpoints. Leave empty to use public default nodes.',
   detectedFromEnv: 'Detected from environment variables',
   test: 'Test',
-  skipAndFinish: 'Skip & Finish',
   completeSetup: 'Complete Setup',
   allSet: 'All Set!',
   allSetDesc: 'BNBrain is ready. Redirecting to chat...',
   autoConfigLoading: 'Loading pre-configured settings...',
   autoConfigApplied: 'Pre-configured settings applied. Review and adjust as needed.',
+  autoConfigNote: 'These are free testing credentials with limited quota. You can update them later in the admin dashboard.',
   walletLoginHint: 'BNBrain supports wallet-based admin login.',
   walletLoginHintDetail: 'Go to Admin Dashboard \u2192 Admin Wallets to add admin wallet addresses and enable wallet login.',
   walletConfigured: 'Admin wallet configured',
+  warningTitle: 'Missing Configuration',
+  warningDesc: 'The following services are not configured. You can add them later in the admin dashboard.',
+  warningAI: 'AI Model \u2014 Security analysis agent will not function without an AI model.',
+  warningGoPlus: 'GoPlus \u2014 Token security scanning and address risk analysis will be unavailable.',
+  warningBscScan: 'BscScan \u2014 Transaction history and contract verification will be unavailable.',
+  warningNodeReal: 'NodeReal \u2014 BSC enhanced API will be unavailable.',
+  warningSerper: 'Serper \u2014 Web search for deep token research will be unavailable.',
+  warningSteel: 'Steel \u2014 Website scraping for DApp analysis will be unavailable.',
+  warningCancel: 'Go Back',
+  warningConfirm: 'Continue Anyway',
 };
 
 const zh: typeof en = {
   subtitle: '\u6b22\u8fce\uff01\u8ba9\u6211\u4eec\u5148\u5b8c\u6210\u57fa\u672c\u914d\u7f6e\uff0c\u7136\u540e\u5f00\u59cb\u4f7f\u7528\u3002',
   stepAccount: '\u7ba1\u7406\u8d26\u6237',
-  stepAIServices: 'AI \u4e0e\u670d\u52a1',
+  stepAI: 'AI \u6a21\u578b',
+  stepServices: '\u670d\u52a1',
   stepDone: '\u5b8c\u6210',
   accountTitle: '\u7ba1\u7406\u5458\u8d26\u6237',
   accountDesc: '\u521b\u5efa\u7ba1\u7406\u5458\u8d26\u6237\u7528\u4e8e\u7ba1\u7406 BNBrain\u3002\u53ef\u9009\u586b\u7ba1\u7406\u5458\u94b1\u5305\u5730\u5740\u4ee5\u542f\u7528\u94b1\u5305\u767b\u5f55\u3002',
@@ -1360,19 +1464,29 @@ const zh: typeof en = {
   advancedServices: '\u9ad8\u7ea7\u914d\u7f6e\uff1a\u94b1\u5305\u767b\u5f55\u4e0e RPC \u8282\u70b9',
   siweLabel: '\u94b1\u5305\u767b\u5f55',
   siweDesc: '\u914d\u7f6e SIWE \u94b1\u5305\u767b\u5f55\u7684\u57df\u540d\u548c\u5141\u8bb8\u7684\u94fe ID\u3002',
-  siweDomainPlaceholder: '\u57df\u540d\uff0c\u4f8b\u5982 app.bnbrain.dev',
+  siweDomainPlaceholder: '\u57df\u540d\uff0c\u4f8b\u5982 your-domain.com',
   siweChainIdsPlaceholder: '\u94fe ID\uff0c\u4f8b\u5982 56,204',
   rpcTitle: 'RPC \u8282\u70b9',
   rpcDesc: '\u81ea\u5b9a\u4e49 RPC \u8282\u70b9\u5730\u5740\u3002\u7559\u7a7a\u5c06\u4f7f\u7528\u516c\u5171\u9ed8\u8ba4\u8282\u70b9\u3002',
   detectedFromEnv: '\u5df2\u4ece\u73af\u5883\u53d8\u91cf\u68c0\u6d4b\u5230',
   test: '\u6d4b\u8bd5',
-  skipAndFinish: '\u8df3\u8fc7\u5e76\u5b8c\u6210',
   completeSetup: '\u5b8c\u6210\u914d\u7f6e',
   allSet: '\u914d\u7f6e\u5b8c\u6210\uff01',
   allSetDesc: 'BNBrain \u5df2\u5c31\u7eea\uff0c\u6b63\u5728\u8df3\u8f6c\u5230\u804a\u5929...',
   autoConfigLoading: '\u6b63\u5728\u52a0\u8f7d\u9884\u914d\u7f6e...',
   autoConfigApplied: '\u9884\u914d\u7f6e\u5df2\u5e94\u7528\uff0c\u8bf7\u68c0\u67e5\u5e76\u6839\u636e\u9700\u8981\u8c03\u6574\u3002',
+  autoConfigNote: '\u8fd9\u662f\u6211\u4eec\u63d0\u4f9b\u7684\u514d\u8d39\u6d4b\u8bd5\u51ed\u8bc1\uff0c\u989d\u5ea6\u6709\u9650\u3002\u53ef\u7a0d\u540e\u5728\u7ba1\u7406\u540e\u53f0\u66f4\u65b0\u4e3a\u81ea\u5df1\u7684 API Key\u3002',
   walletLoginHint: 'BNBrain \u652f\u6301\u94b1\u5305\u767b\u5f55\u7ba1\u7406\u540e\u53f0\u3002',
   walletLoginHintDetail: '\u8fdb\u5165\u7ba1\u7406\u540e\u53f0 \u2192 \u7ba1\u7406\u5458\u94b1\u5305 \u9875\u9762\uff0c\u6dfb\u52a0\u7ba1\u7406\u5458\u94b1\u5305\u5730\u5740\u5373\u53ef\u542f\u7528\u3002',
   walletConfigured: '\u5df2\u914d\u7f6e\u7ba1\u7406\u5458\u94b1\u5305',
+  warningTitle: '\u914d\u7f6e\u7f3a\u5931\u63d0\u9192',
+  warningDesc: '\u4ee5\u4e0b\u670d\u52a1\u5c1a\u672a\u914d\u7f6e\uff0c\u53ef\u4ee5\u7a0d\u540e\u5728\u7ba1\u7406\u540e\u53f0\u4e2d\u6dfb\u52a0\u3002',
+  warningAI: 'AI \u6a21\u578b \u2014 \u7f3a\u5c11 AI \u6a21\u578b\uff0c\u5b89\u5168\u5206\u6790\u4ee3\u7406\u5c06\u65e0\u6cd5\u5de5\u4f5c\u3002',
+  warningGoPlus: 'GoPlus \u2014 \u4ee3\u5e01\u5b89\u5168\u626b\u63cf\u3001\u5730\u5740\u98ce\u9669\u5206\u6790\u5c06\u4e0d\u53ef\u7528\u3002',
+  warningBscScan: 'BscScan \u2014 \u4ea4\u6613\u5386\u53f2\u548c\u5408\u7ea6\u9a8c\u8bc1\u5c06\u4e0d\u53ef\u7528\u3002',
+  warningNodeReal: 'NodeReal \u2014 BSC \u589e\u5f3a API \u5c06\u4e0d\u53ef\u7528\u3002',
+  warningSerper: 'Serper \u2014 \u4ee3\u5e01\u6df1\u5ea6\u7814\u7a76\u7684\u7f51\u9875\u641c\u7d22\u5c06\u4e0d\u53ef\u7528\u3002',
+  warningSteel: 'Steel \u2014 DApp \u5206\u6790\u7684\u7f51\u9875\u6293\u53d6\u5c06\u4e0d\u53ef\u7528\u3002',
+  warningCancel: '\u8fd4\u56de\u4fee\u6539',
+  warningConfirm: '\u7ee7\u7eed\u5b8c\u6210',
 };

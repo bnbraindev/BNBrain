@@ -246,8 +246,8 @@ async function validateBscScan(config: Record<string, string>): Promise<{
   const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
 
   try {
-    // Simple balance check for a known address via Etherscan V2
-    const url = `https://api.etherscan.io/v2/api?chainid=56&module=account&action=balance&address=0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82&apikey=${encodeURIComponent(apiKey)}`;
+    // Simple balance check for a known address via BscScan free API
+    const url = `https://api.bscscan.com/api?module=account&action=balance&address=0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82&apikey=${encodeURIComponent(apiKey)}`;
 
     const response = await fetch(url, { signal: controller.signal });
     const latencyMs = Date.now() - start;
