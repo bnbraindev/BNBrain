@@ -15,6 +15,12 @@
       "address": "0xcF7C93e9A8D27b706263Ce3ca88BC65C051C83e4",
       "explorerLink": "https://bscscan.com/address/0xcf7c93e9a8d27b706263ce3ca88bc65c051c83e4",
       "description": "ERC20 token deployed in one conversation — user described requirements in natural language, AI generated Solidity, compiled, deployed, and auto-verified on BscScan. Full conversation replay: https://app.bnbrain.dev/share/d814c63f-280f-4cbf-bd6b-9282f30eb8d2"
+    },
+    {
+      "name": "GeneralLocker",
+      "address": "0x113D68588700A05d7CFbAf788cB6Fb184c3586Ac",
+      "explorerLink": "https://bscscan.com/address/0x113d68588700a05d7cfbaf788cb6fb184c3586ac",
+      "description": "General-purpose token locker contract built with OpenZeppelin SafeERC20 and Ownable. Deployed and verified via BNBrain — AI generated Solidity, compiled, deployed, and auto-verified on BscScan. Full conversation replay: https://app.bnbrain.dev/share/8c22ee75-a42f-48fd-b383-ac87f4f454b6"
     }
   ],
   "notes": "All contracts were deployed and verified through BNBrain itself (self-bootstrapped / dogfooding). Workflow: user describes requirements in natural language → AI generates Solidity → compiles with OpenZeppelin → user signs to deploy → BNBrain auto-verifies source on BscScan."
