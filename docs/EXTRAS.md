@@ -8,9 +8,7 @@ Demo videos and slide decks support the main submission. Technical judges primar
 
 - **Live Demo**: [https://app.bnbrain.dev](https://app.bnbrain.dev)
 
-- **Demo Video**: <TODO: paste YouTube link here>
-
-- **Slide Deck**: <TODO: paste link here if available>
+- **Demo Video**: https://youtu.be/yRiy0IHUQgE
 
 ---
 

@@ -8,10 +8,7 @@
 
 - **在线演示**：[https://app.bnbrain.dev](https://app.bnbrain.dev)
 
-- **演示视频**：<TODO: 粘贴 YouTube 链接>
-
-- **演示幻灯片**：<TODO: 粘贴链接（如有）>
-
+- **演示视频**： [https://youtu.be/yRiy0IHUQgE](https://youtu.be/yRiy0IHUQgE)
 ---
 
 ## AI 构建日志
