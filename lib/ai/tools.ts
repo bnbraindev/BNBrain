@@ -384,6 +384,22 @@ export const aiTools = {
           };
         }
 
+        // Convert Unix-second timestamps in locked_detail to ISO dates for AI readability
+        const fmtLockDetail = (d: { amount: string; end_time: string; opt_time: string }) => ({
+          ...d,
+          end_date: d.end_time && d.end_time !== '0' ? new Date(Number(d.end_time) * 1000).toISOString() : null,
+          opt_date: d.opt_time && d.opt_time !== '0' ? new Date(Number(d.opt_time) * 1000).toISOString() : null,
+        });
+        if (goplus.raw?.holders) {
+          for (const h of goplus.raw.holders) {
+            if (h.locked_detail) h.locked_detail = h.locked_detail.map(fmtLockDetail) as typeof h.locked_detail;
+          }
+        }
+        if (goplus.raw?.lp_holders) {
+          for (const h of goplus.raw.lp_holders) {
+            if (h.locked_detail) h.locked_detail = h.locked_detail.map(fmtLockDetail) as typeof h.locked_detail;
+          }
+        }
         return { ...goplus, honeypotIs };
       } catch (error) {
         return { error: error instanceof Error ? error.message : 'Token security check failed' };
@@ -480,7 +496,13 @@ export const aiTools = {
           return { error: 'Invalid token address' };
         }
         const price = await getTokenPrice(address);
-        return price ?? { error: 'Token price not found' };
+        if (!price) return { error: 'Token price not found' };
+        return {
+          ...price,
+          pairCreatedAtDate: price.pairCreatedAt
+            ? new Date(price.pairCreatedAt).toISOString()
+            : null,
+        };
       } catch (error) {
         return { error: error instanceof Error ? error.message : 'Failed to fetch token info' };
       }
@@ -2181,7 +2203,11 @@ export const aiTools = {
       try {
         const ticker = await getTicker24h(symbol);
         if (!ticker) return { error: `No Binance ticker found for "${symbol}". The token may not be listed on Binance.` };
-        return ticker;
+        return {
+          ...ticker,
+          openDate: new Date(ticker.openTime).toISOString(),
+          closeDate: new Date(ticker.closeTime).toISOString(),
+        };
       } catch (error) {
         return { error: error instanceof Error ? error.message : 'Failed to fetch Binance ticker' };
       }
@@ -2200,11 +2226,16 @@ export const aiTools = {
         const validInterval: KlineInterval = isValidInterval(interval) ? interval : '1h';
         const candles = await getKlines(symbol, validInterval, limit);
         if (candles.length === 0) return { error: `No kline data for "${symbol}". The token may not be listed on Binance.` };
+        const enriched = candles.map(c => ({
+          ...c,
+          date: new Date(c.openTime).toISOString().slice(0, 16).replace('T', ' ') + ' UTC',
+        }));
         return {
           symbol: resolveSymbol(symbol),
           interval: validInterval,
-          candles,
-          count: candles.length,
+          dataRange: `${enriched[0].date} → ${enriched[enriched.length - 1].date}`,
+          candles: enriched,
+          count: enriched.length,
         };
       } catch (error) {
         return { error: error instanceof Error ? error.message : 'Failed to fetch kline data' };
@@ -2297,9 +2328,11 @@ export const aiTools = {
         }
         const overallSignal = bullish > bearish ? 'bullish' : bearish > bullish ? 'bearish' : 'neutral';
 
+        const fmtDate = (ms: number) => new Date(ms).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
         return {
           symbol: resolveSymbol(symbol),
           interval: validInterval,
+          dataRange: `${fmtDate(candles[0].openTime)} → ${fmtDate(candles[candles.length - 1].openTime)}`,
           currentPrice,
           indicators: {
             rsi: rsi !== null ? Math.round(rsi * 100) / 100 : null,
@@ -3110,6 +3143,7 @@ export const aiTools = {
             sizeBytes: f.sizeBytes,
             updatedBy: f.updatedBy,
             updatedAt: f.updatedAt,
+            updatedAtDate: f.updatedAt ? new Date(f.updatedAt).toISOString() : null,
           })),
         };
       } catch (error) {
