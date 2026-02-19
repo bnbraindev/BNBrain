@@ -117,20 +117,20 @@ BNBrain 是一个能在 BNB Chain 上**执行真实操作**的 AI 代理。不�
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
 
 1. 点击按钮 — Railway 自动创建应用 + PostgreSQL 数据库
-2. 等待约 3 分钟完成构建
+2. 部署在 1 分钟内完成（预构建镜像）
 3. 打开应用地址 → **初始化向导**引导完成配置
 4. 输入 Anthropic API Key 和可选的服务密钥
 5. 连接钱包，开始对话
 
-### 方式二：Docker 自部署
+### 方式二：Docker 一键部署（自托管）
+
+内置 PostgreSQL，无需外部数据库：
 
 ```bash
 git clone https://github.com/bnbraindev/BNBrain.git
 cd bnb-ai
-cp .env.example .env
-# 编辑 .env — 只需填 DATABASE_URL
-docker compose up -d
-# 打开 http://localhost:3000
+docker compose -f docker-compose.deploy.yml up -d
+# 打开 http://localhost:3000 → 初始化向导
 ```
 
 ### 方式三：本地开发
@@ -147,7 +147,7 @@ npm run dev
 # 打开 http://localhost:3099
 ```
 
-> 部署时只需 `DATABASE_URL`。所有其他设置（API Key、RPC 端点、认证配置）通过内置的初始化向导和管理后台配置。
+> 部署时只需 `DATABASE_URL`。所有其他设置（API Key、RPC 端点、认证配置）通过内置的**初始化向导**和**管理后台**配置。
 
 ---
 

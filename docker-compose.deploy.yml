@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bnbshield
+      POSTGRES_PASSWORD: bnbshield
+      POSTGRES_DB: bnbshield
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bnbshield"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: ghcr.io/bnbraindev/BNBrain:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://bnbshield:bnbshield@db:5432/bnbshield
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

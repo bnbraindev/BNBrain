@@ -117,20 +117,20 @@ All actions execute on **BSC Mainnet** and **opBNB**. See [`bsc.address`](bsc.ad
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/4x9OKQ?referralCode=P0oSOk)
 
 1. Click the button — Railway provisions app + PostgreSQL automatically
-2. Wait ~3 minutes for the build
+2. Deploy completes in under 1 minute (pre-built image)
 3. Open your app URL → **Setup Wizard** guides you through configuration
 4. Enter your Anthropic API key and optional service keys
 5. Connect wallet and start chatting
 
-### Option 2: Docker (Self-Hosted)
+### Option 2: Docker One-Click (Self-Hosted)
+
+PostgreSQL included — no external database needed:
 
 ```bash
 git clone https://github.com/bnbraindev/BNBrain.git
 cd bnb-ai
-cp .env.example .env
-# Edit .env — only DATABASE_URL is required
-docker compose up -d
-# Open http://localhost:3000
+docker compose -f docker-compose.deploy.yml up -d
+# Open http://localhost:3000 → Setup Wizard
 ```
 
 ### Option 3: Local Development
@@ -147,7 +147,7 @@ npm run dev
 # Open http://localhost:3099
 ```
 
-> Only `DATABASE_URL` is required at deploy time. All other settings (API keys, RPC endpoints, auth config) are configured through the built-in Setup Wizard and Admin Dashboard.
+> Only `DATABASE_URL` is required. All other settings (API keys, RPC endpoints, auth config) are configured through the built-in **Setup Wizard** and **Admin Dashboard**.
 
 ---
 
