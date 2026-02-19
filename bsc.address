@@ -6,15 +6,15 @@
   "contracts": [
     {
       "name": "ReportRegistry",
-      "address": "0x6BAd70d55753b35BDE6820F570452F0E1BD371d4",
-      "explorerLink": "https://bscscan.com/address/0x6bad70d55753b35bde6820f570452f0e1bd371d4",
-      "description": "On-chain security report hash storage. Stores keccak256 hashes of security scan reports as tamper-proof evidence. Deployed and verified via BNBrain itself (self-bootstrapped). Full conversation replay: https://app.bnbrain.dev/share/e94008ed-759a-4b9b-af3f-3160b4ae7ebd"
+      "address": "0x0E2053266e41809892FfAc2fe80bCA1f93b7c230",
+      "explorerLink": "https://bscscan.com/address/0x0e2053266e41809892ffac2fe80bca1f93b7c230",
+      "description": "On-chain security report hash storage. Stores keccak256 hashes of security scan reports as tamper-proof evidence. Deployed and verified via BNBrain itself (self-bootstrapped). Full conversation replay: https://app.bnbrain.dev/share/9b5ff8b7-5553-45ec-94b9-d163d6412340"
     },
     {
       "name": "BNBrain (ERC20 Token)",
-      "address": "0xcF7C93e9A8D27b706263Ce3ca88BC65C051C83e4",
-      "explorerLink": "https://bscscan.com/address/0xcf7c93e9a8d27b706263ce3ca88bc65c051c83e4",
-      "description": "ERC20 token deployed in one conversation — user described requirements in natural language, AI generated Solidity, compiled, deployed, and auto-verified on BscScan. Full conversation replay: https://app.bnbrain.dev/share/d814c63f-280f-4cbf-bd6b-9282f30eb8d2"
+      "address": "0xE2F69b65E511A96bE3cCec4C6e1f6934c4145912",
+      "explorerLink": "https://bscscan.com/address/0xe2f69b65e511a96be3ccec4c6e1f6934c4145912",
+      "description": "ERC20 token deployed in one conversation — user described requirements in natural language, AI generated Solidity, compiled, deployed, and auto-verified on BscScan. Full conversation replay: https://app.bnbrain.dev/share/dbef14fd-9f0a-4eb3-900d-d7ec89c216b9"
     },
     {
       "name": "GeneralLocker",

@@ -30,8 +30,8 @@ BNBrain 是一个能在 BNB Chain 上**执行真实操作**的 AI 代理。不�
 
 | 合约 | 链 | 地址 | 说明 |
 |------|---|------|------|
-| ReportRegistry | BSC Mainnet (56) | [`0x6BAd70d55753b35BDE6820F570452F0E1BD371d4`](https://bscscan.com/address/0x6bad70d55753b35bde6820f570452f0e1bd371d4) | 链上安全报告哈希存证，由 BNBrain 自身部署并验证（[对话回放](https://app.bnbrain.dev/share/e94008ed-759a-4b9b-af3f-3160b4ae7ebd)） |
-| BNBrain (ERC20 Token) | BSC Mainnet (56) | [`0xcF7C93e9A8D27b706263Ce3ca88BC65C051C83e4`](https://bscscan.com/address/0xcf7c93e9a8d27b706263ce3ca88bc65c051c83e4) | 用自然语言描述需求，AI 生成 Solidity、编译、部署并自动验证（[对话回放](https://app.bnbrain.dev/share/d814c63f-280f-4cbf-bd6b-9282f30eb8d2)） |
+| ReportRegistry | BSC Mainnet (56) | [`0x0E2053266e41809892FfAc2fe80bCA1f93b7c230`](https://bscscan.com/address/0x0e2053266e41809892ffac2fe80bca1f93b7c230) | 链上安全报告哈希存证，由 BNBrain 自身部署并验证（[对话回放](https://app.bnbrain.dev/share/9b5ff8b7-5553-45ec-94b9-d163d6412340)） |
+| BNBrain (ERC20 Token) | BSC Mainnet (56) | [`0xE2F69b65E511A96bE3cCec4C6e1f6934c4145912`](https://bscscan.com/address/0xe2f69b65e511a96be3ccec4c6e1f6934c4145912) | 用自然语言描述需求，AI 生成 Solidity、编译、部署并自动验证（[对话回放](https://app.bnbrain.dev/share/dbef14fd-9f0a-4eb3-900d-d7ec89c216b9)） |
 | GeneralLocker | BSC Mainnet (56) | [`0x113D68588700A05d7CFbAf788cB6Fb184c3586Ac`](https://bscscan.com/address/0x113d68588700a05d7cfbaf788cb6fb184c3586ac) | 通用代币锁仓合约，基于 OpenZeppelin SafeERC20 和 Ownable（[对话回放](https://app.bnbrain.dev/share/8c22ee75-a42f-48fd-b383-ac87f4f454b6)） |
 
 ---
