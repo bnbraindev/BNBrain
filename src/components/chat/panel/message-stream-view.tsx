@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import type { UIMessage } from 'ai';
+import { Loader2 } from 'lucide-react';
 import { VList, type VListHandle } from 'virtua';
 
 import { Message } from '../message';
@@ -23,6 +24,8 @@ interface MessageStreamViewProps {
   onMessageListScroll: (offset: number) => void;
   messageListRef: RefObject<VListHandle | null>;
   showStreamSlowHint: boolean;
+  showPendingAssistantCard: boolean;
+  pendingAssistantText: string;
   showInterruptedHint: boolean;
   interruptedHintText: string;
   onContinueGeneration: () => void;
@@ -42,6 +45,8 @@ export function MessageStreamView({
   onMessageListScroll,
   messageListRef,
   showStreamSlowHint,
+  showPendingAssistantCard,
+  pendingAssistantText,
   showInterruptedHint,
   interruptedHintText,
   onContinueGeneration,
@@ -112,6 +117,18 @@ export function MessageStreamView({
           </div>
         ))}
 
+        {/* Pending assistant placeholder while waiting for first output chunk */}
+        {showPendingAssistantCard && (
+          <div key="__pending-assistant" className="mx-auto w-full max-w-3xl px-2 pb-5 sm:px-3 sm:pb-7">
+            <div className="pl-[26px]">
+              <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
+                <Loader2 className="size-3.5 animate-spin text-primary" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">{pendingAssistantText}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Interrupted: resume / dismiss controls */}
         {showInterruptedHint && (
           <div key="__interrupted" className="mx-auto w-full max-w-3xl px-2 pb-5 sm:px-3 sm:pb-7">
@@ -134,8 +151,13 @@ export function MessageStreamView({
         aria-hidden={!showIndicator}
       >
         <div className={showIndicator ? 'pb-3' : 'pb-0'}>
-          <StreamingIndicator withHeader={!lastIsAssistant} />
+          <StreamingIndicator withHeader={!lastIsAssistant} locale={locale} />
         </div>
+        {showIndicator && showStreamSlowHint && (
+          <p className="pl-[26px] pt-1 text-[11px] text-amber-500/90">
+            {t('chat.streamingSlow')}
+          </p>
+        )}
       </div>
     </div>
   );

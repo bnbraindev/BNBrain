@@ -815,7 +815,6 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     hiddenMessageCount,
     isEmpty,
     isAtBottom,
-    loadOlderMessages,
     handleMessageListScroll,
     scrollToBottom,
     resetViewport,
@@ -1532,6 +1531,8 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
                   onMessageListScroll={handleMessageListScroll}
                   messageListRef={messageListRef}
                   showStreamSlowHint={showStreamSlowHint}
+                  showPendingAssistantCard={showPendingAssistantCard}
+                  pendingAssistantText={pendingAssistantText}
                   showInterruptedHint={showInterruptedHint}
                   interruptedHintText={interruptedHintText}
                   onContinueGeneration={handleRegenerate}
