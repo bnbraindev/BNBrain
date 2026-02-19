@@ -876,24 +876,24 @@ export const aiTools = {
           return { error: 'BscScan/Etherscan API key is not configured. Set it in Admin > Settings or BSCSCAN_API_KEY env var.' };
         }
 
-        // C2: Dynamically resolve compiler version from bundled solc
-        let resolvedCompilerVersion = compilerVersion;
-        if (!resolvedCompilerVersion) {
-          try {
-            const solc = require('solc');
-            const rawVersion: string = solc.version();
-            // solc.version() returns "0.8.33+commit.64118f21.Emscripten.clang"
-            // BscScan expects "v0.8.33+commit.64118f21"
-            const parts = rawVersion.split('.');
-            if (parts.length >= 3) {
-              const patchAndCommit = parts.slice(2).join('.').split('.Emscripten')[0].split('.Linux')[0].split('.Darwin')[0];
-              resolvedCompilerVersion = `v${parts[0]}.${parts[1]}.${patchAndCommit}`;
-            } else {
-              resolvedCompilerVersion = `v${rawVersion.split('.Emscripten')[0]}`;
-            }
-          } catch {
-            resolvedCompilerVersion = 'v0.8.28+commit.7893614a'; // safe fallback
+        // C2: Always resolve compiler version from bundled solc.
+        // The contract was compiled with OUR solc, so the version must match.
+        // Ignore AI-provided compilerVersion (often the pragma minimum, not actual).
+        let resolvedCompilerVersion: string;
+        try {
+          const solc = require('solc');
+          const rawVersion: string = solc.version();
+          // solc.version() returns "0.8.33+commit.64118f21.Emscripten.clang"
+          // BscScan expects "v0.8.33+commit.64118f21"
+          const parts = rawVersion.split('.');
+          if (parts.length >= 3) {
+            const patchAndCommit = parts.slice(2).join('.').split('.Emscripten')[0].split('.Linux')[0].split('.Darwin')[0];
+            resolvedCompilerVersion = `v${parts[0]}.${parts[1]}.${patchAndCommit}`;
+          } else {
+            resolvedCompilerVersion = `v${rawVersion.split('.Emscripten')[0]}`;
           }
+        } catch {
+          resolvedCompilerVersion = compilerVersion ?? 'v0.8.28+commit.7893614a';
         }
 
         const { runContractVerification } = await import('@/lib/server/contract-verification');
