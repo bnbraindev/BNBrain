@@ -12,7 +12,11 @@ interface SuggestedRepliesProps {
   onSelect: (text: string) => void;
 }
 
-type Suggestion = { en: string; zh: string };
+type Suggestion = {
+  en: string;
+  zh: string;
+  action?: 'verify-contract';
+};
 
 /**
  * Map from tool name → follow-up suggestions.
@@ -92,12 +96,12 @@ const TOOL_SUGGESTIONS: Record<string, Suggestion[]> = {
     { en: 'Simulate first', zh: '先模拟一下' },
   ],
   compileContractDeploy: [
-    { en: 'Verify this contract', zh: '验证这个合约' },
+    { en: 'Verify this contract', zh: '验证这个合约', action: 'verify-contract' },
     { en: 'Check the contract security', zh: '检查合约安全' },
     { en: 'Add liquidity', zh: '添加流动性' },
   ],
   deployToken: [
-    { en: 'Verify on BscScan', zh: '在 BscScan 验证' },
+    { en: 'Verify on BscScan', zh: '在 BscScan 验证', action: 'verify-contract' },
     { en: 'Check the security', zh: '检查安全性' },
     { en: 'Add liquidity', zh: '添加流动性' },
   ],
@@ -138,7 +142,7 @@ const TOOL_SUGGESTIONS: Record<string, Suggestion[]> = {
   ],
   inspectContract: [
     { en: 'Check token security', zh: '检查代币安全' },
-    { en: 'Verify this contract', zh: '验证这个合约' },
+    { en: 'Verify this contract', zh: '验证这个合约', action: 'verify-contract' },
     { en: 'Check liquidity', zh: '查看流动性' },
   ],
   checkLiquidity: [
@@ -169,16 +173,32 @@ const GENERIC_SUGGESTIONS: Suggestion[] = [
   { en: 'What can you do?', zh: '你能做什么？' },
 ];
 
-function getLastToolName(messages: UIMessage[]): string | null {
+function getLastToolPart(messages: UIMessage[]) {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role !== 'assistant') continue;
     const toolParts = msg.parts.filter(isToolUIPart);
     if (toolParts.length > 0) {
-      return getToolName(toolParts[toolParts.length - 1]);
+      return toolParts[toolParts.length - 1];
     }
   }
   return null;
+}
+
+function shouldSuppressVerifySuggestions(lastToolPart: ReturnType<typeof getLastToolPart>): boolean {
+  if (!lastToolPart || lastToolPart.state !== 'output-available') return false;
+  const output = lastToolPart.output;
+  if (!output || typeof output !== 'object') return false;
+
+  const toolName = getToolName(lastToolPart);
+  const payload = output as Record<string, unknown>;
+  if (toolName === 'verifyContract') {
+    return payload.verificationStatus === 'verified';
+  }
+  if (toolName === 'inspectContract') {
+    return payload.isVerified === true;
+  }
+  return false;
 }
 
 export const SuggestedReplies = memo(function SuggestedReplies({
@@ -193,12 +213,18 @@ export const SuggestedReplies = memo(function SuggestedReplies({
     // Only show after assistant messages
     if (lastMsg.role !== 'assistant') return null;
 
-    const toolName = getLastToolName(messages);
+    const lastToolPart = getLastToolPart(messages);
+    const toolName = lastToolPart ? getToolName(lastToolPart) : null;
     const pool = toolName && TOOL_SUGGESTIONS[toolName]
       ? TOOL_SUGGESTIONS[toolName]
       : GENERIC_SUGGESTIONS;
+    const verifiedAlready = shouldSuppressVerifySuggestions(lastToolPart);
+    const filteredPool = verifiedAlready
+      ? pool.filter((item) => item.action !== 'verify-contract')
+      : pool;
+    if (filteredPool.length === 0) return null;
 
-    return pool.slice(0, 3);
+    return filteredPool.slice(0, 3);
   }, [messages]);
 
   if (!suggestions || isStreaming) return null;
@@ -213,7 +239,11 @@ export const SuggestedReplies = memo(function SuggestedReplies({
             key={text}
             type="button"
             className="cursor-pointer rounded-full border border-border bg-card/80 px-3 py-1 text-xs text-muted-foreground backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-primary/10 hover:text-foreground hover:shadow-sm active:scale-95"
-            onClick={() => onSelect(text)}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onSelect(text);
+            }}
           >
             {text}
           </button>

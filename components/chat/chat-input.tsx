@@ -45,6 +45,11 @@ interface ChatInputProps {
   isStreaming: boolean;
   isProcessing?: boolean;
   isDraftConversation?: boolean;
+  prefillRequest?: {
+    id: number;
+    text: string;
+  } | null;
+  onPrefillApplied?: (id: number) => void;
 }
 
 export function ChatInput({
@@ -53,6 +58,8 @@ export function ChatInput({
   isStreaming,
   isProcessing = false,
   isDraftConversation = false,
+  prefillRequest = null,
+  onPrefillApplied,
 }: ChatInputProps) {
   const { t, locale } = useI18n();
   const SLASH_COMMANDS = locale === 'zh' ? SLASH_COMMANDS_ZH : SLASH_COMMANDS_EN;
@@ -82,6 +89,21 @@ export function ChatInput({
   useEffect(() => {
     adjustHeight();
   }, [value, adjustHeight]);
+
+  useEffect(() => {
+    if (!prefillRequest) return;
+    const el = textareaRef.current;
+    if (el) {
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        'value'
+      )?.set;
+      nativeSetter?.call(el, prefillRequest.text);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.focus();
+    }
+    onPrefillApplied?.(prefillRequest.id);
+  }, [prefillRequest, onPrefillApplied]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const v = e.target.value;

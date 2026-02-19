@@ -193,7 +193,12 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
   const [sharedConversationLoading, setSharedConversationLoading] = useState(false);
   const [sharedConversationError, setSharedConversationError] = useState<string | null>(null);
   const [forkingFromShare, setForkingFromShare] = useState(false);
+  const [suggestedReplyPrefill, setSuggestedReplyPrefill] = useState<{
+    id: number;
+    text: string;
+  } | null>(null);
   const messageListRef = useRef<VListHandle | null>(null);
+  const suggestedReplyPrefillIdRef = useRef(0);
   const titleGenerationInFlightRef = useRef<Set<string>>(new Set());
   const lastCancelRequestAtRef = useRef<Map<string, number>>(new Map());
   const QUICK_ACTIONS = locale === 'zh' ? QUICK_ACTIONS_ZH : QUICK_ACTIONS_EN;
@@ -1091,6 +1096,20 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     sendTextWithConversationId,
   ]);
 
+  const handleSuggestedReplySelect = useCallback((text: string) => {
+    suggestedReplyPrefillIdRef.current += 1;
+    setSuggestedReplyPrefill({
+      id: suggestedReplyPrefillIdRef.current,
+      text,
+    });
+  }, []);
+
+  const handlePrefillApplied = useCallback((requestId: number) => {
+    setSuggestedReplyPrefill((current) =>
+      current && current.id === requestId ? null : current
+    );
+  }, []);
+
   useEffect(() => {
     if (!activeConversationId) return;
     if (isReadingSharedConversation) return;
@@ -1479,7 +1498,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
               messages={visibleMessages}
               isStreaming={isStreaming}
               locale={locale}
-              onSelect={(text) => handleSend(text)}
+              onSelect={handleSuggestedReplySelect}
             />
           )}
 
@@ -1490,6 +1509,8 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
             isStreaming={isStreaming}
             isProcessing={forkingFromShare}
             isDraftConversation={isDraftConversation}
+            prefillRequest={suggestedReplyPrefill}
+            onPrefillApplied={handlePrefillApplied}
           />
         </div>
 
