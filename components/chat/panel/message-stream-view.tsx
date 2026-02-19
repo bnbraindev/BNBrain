@@ -103,16 +103,6 @@ export function MessageStreamView({
           </div>
         ))}
 
-        {/* Unified streaming indicator — debounced to prevent flicker during tool calls */}
-        {showIndicator && (
-          <div key="__streaming" className="mx-auto w-full max-w-3xl px-2 pb-3 sm:px-3">
-            <StreamingIndicator withHeader={!lastIsAssistant} />
-          </div>
-        )}
-
-        {/* Stalled hint removed — tool execution pauses (e.g. deepTokenAnalysis ~60s)
-           triggered this too aggressively, causing unnecessary user anxiety. */}
-
         {/* Interrupted: resume / dismiss controls */}
         {showInterruptedHint && (
           <div key="__interrupted" className="mx-auto w-full max-w-3xl px-2 pb-5 sm:px-3 sm:pb-7">
@@ -125,6 +115,19 @@ export function MessageStreamView({
           </div>
         )}
       </VList>
+
+      {/* Streaming indicator — rendered OUTSIDE VList to avoid layout shift.
+          Uses fixed height + opacity transition instead of conditional mount/unmount. */}
+      <div
+        className={`mx-auto w-full max-w-3xl px-2 sm:px-3 transition-opacity duration-200 ${
+          showIndicator ? 'h-auto opacity-100' : 'h-0 overflow-hidden opacity-0'
+        }`}
+        aria-hidden={!showIndicator}
+      >
+        <div className="pb-3">
+          <StreamingIndicator withHeader={!lastIsAssistant} />
+        </div>
+      </div>
     </div>
   );
 }

@@ -625,6 +625,11 @@ export function ToolInvocation({ toolInvocation, conversationId, locale = 'en', 
   if (!isDone) {
     // Deep analysis: render real-time progress card instead of generic loading pill
     if (toolName === 'deepTokenAnalysis') {
+      // In readOnly/share mode, an unfinished tool will never complete.
+      // Pass isLoading=false to trigger the amber "incomplete" card.
+      if (readOnly) {
+        return <DeepAnalysisCard isLoading={false} locale={locale} />;
+      }
       const input = 'input' in toolInvocation
         ? (toolInvocation.input as Record<string, unknown> | undefined)
         : undefined;

@@ -512,10 +512,115 @@ export interface VerifyContractInput {
   codeFormat?: 'solidity-single-file' | 'solidity-standard-json-input';
 }
 
+// ── OZ import resolution for verification ──────────────────
+
+/** Detect whether Solidity source uses @openzeppelin imports. */
+function hasOzImports(source: string): boolean {
+  return /^\s*import\s[^;]*["']@openzeppelin\//m.test(source);
+}
+
+/** Find node_modules containing @openzeppelin/contracts. */
+let _verifyOzBaseCache: string | null | undefined;
+function findNodeModulesBase(): string | null {
+  if (_verifyOzBaseCache !== undefined) return _verifyOzBaseCache;
+  const fsModule = require('fs') as typeof import('fs');
+  const pathMod = require('path') as typeof import('path');
+  let dir = process.cwd();
+  for (let i = 0; i < 10; i++) {
+    const candidate = pathMod.join(dir, 'node_modules');
+    const probe = pathMod.join(candidate, '@openzeppelin', 'contracts', 'token', 'ERC20', 'ERC20.sol');
+    try {
+      fsModule.accessSync(probe);
+      _verifyOzBaseCache = candidate;
+      return candidate;
+    } catch { /* continue */ }
+    const parent = pathMod.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  _verifyOzBaseCache = null;
+  return null;
+}
+
+/**
+ * Recursively collect all .sol dependencies imported by the source.
+ * Handles both absolute (@openzeppelin/...) and relative (./...) paths.
+ */
+function collectSolDependencies(
+  sourceCode: string,
+  sourceFilePath: string,
+  nodeModulesBase: string,
+  collected: Map<string, string>,
+): void {
+  const fsModule = require('fs') as typeof import('fs');
+  const pathMod = require('path') as typeof import('path');
+  const importRegex = /^\s*import\s[^;]*?["']([^"']+)["']\s*;/gm;
+  let match;
+  while ((match = importRegex.exec(sourceCode)) !== null) {
+    const importPath = match[1];
+    if (!importPath) continue;
+
+    let resolvedKey: string;
+    let diskPath: string;
+
+    if (importPath.startsWith('.')) {
+      const dir = pathMod.posix.dirname(sourceFilePath);
+      resolvedKey = pathMod.posix.normalize(pathMod.posix.join(dir, importPath));
+      diskPath = pathMod.join(nodeModulesBase, resolvedKey);
+    } else {
+      resolvedKey = importPath;
+      diskPath = pathMod.join(nodeModulesBase, importPath);
+    }
+
+    if (collected.has(resolvedKey)) continue;
+
+    try {
+      const content = fsModule.readFileSync(diskPath, 'utf-8');
+      collected.set(resolvedKey, content);
+      collectSolDependencies(content, resolvedKey, nodeModulesBase, collected);
+    } catch {
+      console.warn(`[verifyContract] Could not read dependency: ${resolvedKey}`);
+    }
+  }
+}
+
+/**
+ * Build a Solidity Standard JSON Input string for BscScan verification.
+ * Includes user source as Contract.sol + all recursively collected dependencies.
+ */
+function buildStandardJsonInput(
+  sourceCode: string,
+  nodeModulesBase: string,
+  runs: number,
+  optimizationUsed: boolean,
+): string {
+  const deps = new Map<string, string>();
+  collectSolDependencies(sourceCode, 'Contract.sol', nodeModulesBase, deps);
+
+  const sources: Record<string, { content: string }> = {
+    'Contract.sol': { content: sourceCode },
+  };
+  for (const [key, content] of deps) {
+    sources[key] = { content };
+  }
+
+  return JSON.stringify({
+    language: 'Solidity',
+    sources,
+    settings: {
+      optimizer: { enabled: optimizationUsed, runs },
+      outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object'] } },
+    },
+  });
+}
+
 /**
  * Submit contract source code for verification on BscScan/Etherscan.
  * Returns a GUID that can be used to poll verification status.
  * Uses POST (required by the verification API).
+ *
+ * When @openzeppelin imports are detected, automatically builds a Standard
+ * JSON Input with all recursively collected dependency sources.
  */
 export async function verifyContractSource(
   input: VerifyContractInput
@@ -525,11 +630,30 @@ export async function verifyContractSource(
     return { error: 'Etherscan V2 not supported for this chain or missing API key' };
   }
 
-  // Auto-detect code format: if source starts with '{{' it's Standard JSON Input
-  const codeFormat = input.codeFormat
-    ?? (input.sourceCode.trimStart().startsWith('{{') || input.sourceCode.trimStart().startsWith('{')
-      ? 'solidity-standard-json-input'
-      : 'solidity-single-file');
+  let sourceCode = input.sourceCode;
+  let codeFormat = input.codeFormat;
+
+  if (!codeFormat) {
+    const trimmed = sourceCode.trimStart();
+    if (trimmed.startsWith('{{') || trimmed.startsWith('{')) {
+      codeFormat = 'solidity-standard-json-input';
+    } else if (hasOzImports(sourceCode)) {
+      // Source has @openzeppelin imports — build Standard JSON Input
+      // so BscScan's solc can resolve all dependencies
+      const nodeModulesBase = findNodeModulesBase();
+      if (nodeModulesBase) {
+        sourceCode = buildStandardJsonInput(
+          sourceCode, nodeModulesBase, input.runs ?? 200, input.optimizationUsed,
+        );
+        codeFormat = 'solidity-standard-json-input';
+        console.log(`[verifyContract] Built Standard JSON Input for ${input.address} (detected @openzeppelin imports)`);
+      } else {
+        return { error: 'Cannot verify: @openzeppelin imports detected but node_modules not found on server' };
+      }
+    } else {
+      codeFormat = 'solidity-single-file';
+    }
+  }
 
   // For standard-json-input, contractname must be "filename:ContractName"
   const contractname = codeFormat === 'solidity-standard-json-input' && !input.contractName.includes(':')
@@ -545,7 +669,7 @@ export async function verifyContractSource(
     module: 'contract',
     action: 'verifysourcecode',
     contractaddress: input.address,
-    sourceCode: input.sourceCode,
+    sourceCode,
     codeformat: codeFormat,
     contractname,
     compilerversion: input.compilerVersion,
