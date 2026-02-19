@@ -25,6 +25,12 @@ export function useGlobalShortcuts({ onToggleShortcutsHelp }: UseGlobalShortcuts
       if (meta && e.key === 'n') {
         e.preventDefault();
         const store = useChatStore.getState();
+        const isSharePath =
+          typeof window !== 'undefined' && /^\/share\/[^/]+$/.test(window.location.pathname);
+        if (isSharePath) {
+          store.setSharedViewConversation(null);
+          window.history.replaceState(null, '', '/');
+        }
         store.startDraftConversation(store.authenticatedAddress ?? undefined);
         return;
       }

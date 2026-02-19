@@ -57,6 +57,7 @@ export default function Home() {
     updateConversationTitle,
     toggleConversationStarred,
     sharedViewConversation,
+    setSharedViewConversation,
   } = useChatStore(
     useShallow((state) => ({
       toggleSidebar: state.toggleSidebar,
@@ -71,6 +72,7 @@ export default function Home() {
       updateConversationTitle: state.updateConversationTitle,
       toggleConversationStarred: state.toggleConversationStarred,
       sharedViewConversation: state.sharedViewConversation,
+      setSharedViewConversation: state.setSharedViewConversation,
     }))
   );
   const mainView = useProjectStore((s) => s.mainView);
@@ -133,8 +135,14 @@ export default function Home() {
   useGlobalShortcuts({ onToggleShortcutsHelp: toggleShortcuts });
 
   const handleNew = useCallback(() => {
+    const isSharePath =
+      typeof window !== 'undefined' && /^\/share\/[^/]+$/.test(window.location.pathname);
+    if (isSharePath) {
+      setSharedViewConversation(null);
+      window.history.replaceState(null, '', '/');
+    }
     startDraftConversation(authenticatedAddress ?? undefined);
-  }, [startDraftConversation, authenticatedAddress]);
+  }, [setSharedViewConversation, startDraftConversation, authenticatedAddress]);
 
   // Current conversation for title display
   const activeConversation = activeConversationId

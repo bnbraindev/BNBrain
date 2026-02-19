@@ -161,6 +161,7 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
     updateConversationTitle,
     toggleConversationStarred,
     setConversationShareState,
+    setSharedViewConversation,
     ensureWalletConversation,
     setAuthenticatedAddress,
     clearWalletConversations,
@@ -182,6 +183,7 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
       updateConversationTitle: state.updateConversationTitle,
       toggleConversationStarred: state.toggleConversationStarred,
       setConversationShareState: state.setConversationShareState,
+      setSharedViewConversation: state.setSharedViewConversation,
       ensureWalletConversation: state.ensureWalletConversation,
       setAuthenticatedAddress: state.setAuthenticatedAddress,
       clearWalletConversations: state.clearWalletConversations,
@@ -308,10 +310,22 @@ export function Sidebar({ shareToken }: { shareToken?: string | null } = {}) {
   }, [visibleConversations, t]);
 
   const handleNew = useCallback(() => {
+    const isSharePath =
+      typeof window !== 'undefined' && /^\/share\/[^/]+$/.test(window.location.pathname);
+    if (isSharePath) {
+      setSharedViewConversation(null);
+      window.history.replaceState(null, '', '/');
+    }
     startDraftConversation(authenticatedAddress ?? undefined);
     navigateToChat();
     setSidebarOpen(false);
-  }, [startDraftConversation, authenticatedAddress, navigateToChat, setSidebarOpen]);
+  }, [
+    setSharedViewConversation,
+    startDraftConversation,
+    authenticatedAddress,
+    navigateToChat,
+    setSidebarOpen,
+  ]);
 
   const handleSelect = useCallback(
     (id: string) => {
