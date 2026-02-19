@@ -174,7 +174,10 @@ export function ChatInput({
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
-        selectCommand(filteredCommands[selectedIdx]);
+        const safeIdx = Math.min(selectedIdx, filteredCommands.length - 1);
+        const selected = filteredCommands[safeIdx];
+        if (!selected) return;
+        selectCommand(selected);
         return;
       }
       if (e.key === 'Escape') {

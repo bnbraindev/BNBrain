@@ -11,8 +11,12 @@ import { CardPanel } from './panel/card-panel';
 import { PanelContext, type PanelCard } from './panel/panel-context';
 import { ChatInput } from './chat-input';
 import { useChatStore } from '@/lib/stores/chat-store';
-import { useTxCompletionStore, type TxCompletionEvent } from '@/lib/stores/tx-completion-store';
-import { useFormCompletionStore } from '@/lib/stores/form-completion-store';
+import {
+  useTxCompletionStore,
+  type TxCompletionEvent,
+  TX_EVENT_TTL_MS,
+} from '@/lib/stores/tx-completion-store';
+import { useFormCompletionStore, FORM_EVENT_TTL_MS } from '@/lib/stores/form-completion-store';
 import { useProjectStore } from '@/lib/stores/project-store';
 import { useI18n } from '@/lib/i18n/context';
 import { mapChatErrorToUserMessage } from '@/lib/utils/chat-error';
@@ -402,6 +406,7 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
   }, []);
 
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
+  const pendingProjectMessage = useProjectStore((s) => s.pendingProjectMessage);
 
   const userContext = useMemo(() => ({
     authState: isAuthenticated ? 'authenticated' : 'guest',
@@ -1111,22 +1116,40 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
   }, []);
 
   useEffect(() => {
+    useTxCompletionStore.getState().pruneExpired();
+    useFormCompletionStore.getState().pruneExpired();
+  }, [activeConversationId, isStreaming]);
+
+  useEffect(() => {
     if (!activeConversationId) return;
     if (isReadingSharedConversation) return;
     if (isStreaming) return;
-    const pending = readPendingShareForkMessage();
-    if (!pending) return;
-    if (Date.now() - pending.createdAt > SHARE_FORK_PENDING_MESSAGE_TTL_MS) {
-      clearPendingShareForkMessage();
-      return;
-    }
-    if (pending.conversationId !== activeConversationId) {
-      return;
-    }
-    const sent = sendTextWithConversationId(activeConversationId, pending.text);
-    if (sent) {
-      clearPendingShareForkMessage();
-    }
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const attemptSendPendingShareFork = () => {
+      if (cancelled) return;
+      const pending = readPendingShareForkMessage();
+      if (!pending) return;
+      if (Date.now() - pending.createdAt > SHARE_FORK_PENDING_MESSAGE_TTL_MS) {
+        clearPendingShareForkMessage();
+        return;
+      }
+      if (pending.conversationId !== activeConversationId) return;
+
+      const sent = sendTextWithConversationId(activeConversationId, pending.text);
+      if (sent) {
+        clearPendingShareForkMessage();
+        return;
+      }
+      retryTimer = setTimeout(attemptSendPendingShareFork, 350);
+    };
+
+    attemptSendPendingShareFork();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [
     activeConversationId,
     isReadingSharedConversation,
@@ -1139,19 +1162,31 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     if (isReadingSharedConversation) return;
     if (isStreaming) return;
     if (!draftConversation) return;
-    const { consumePendingProjectMessage } = useProjectStore.getState();
-    const text = consumePendingProjectMessage();
-    if (!text) return;
-    // Small delay to let draft conversation settle
+    if (!pendingProjectMessage) return;
+
     const timer = setTimeout(() => {
-      handleSend(text);
+      const sent = handleSend(pendingProjectMessage);
+      if (sent) {
+        useProjectStore.setState({ pendingProjectMessage: null });
+      }
     }, 100);
     return () => clearTimeout(timer);
-  }, [draftConversation, isReadingSharedConversation, isStreaming, handleSend]);
+  }, [
+    draftConversation,
+    isReadingSharedConversation,
+    isStreaming,
+    handleSend,
+    pendingProjectMessage,
+  ]);
 
   // ── Auto-send silent context when a transaction completes (3s countdown) ──
   const pendingTxCompletion = useTxCompletionStore(
-    (state) => state.pending.find((e) => e.conversationId === activeConversationId)
+    (state) =>
+      state.pending.find(
+        (e) =>
+          e.conversationId === activeConversationId &&
+          Date.now() - e.timestamp <= TX_EVENT_TTL_MS
+      )
   );
   const [txCountdown, setTxCountdown] = useState<number | null>(null);
   const txCountdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1162,25 +1197,47 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
     if (!pendingTxCompletion) return;
     if (isStreaming) return;
     if (!activeConversationId) return;
+    if (pendingTxCompletion.conversationId !== activeConversationId) return;
+    if (txCountdownEventRef.current) return;
 
     txCountdownEventRef.current = pendingTxCompletion;
-    useTxCompletionStore.getState().consume(pendingTxCompletion.id);
     setTxCountdown(3);
   }, [pendingTxCompletion, isStreaming, activeConversationId]);
+
+  // Cancel countdown when user switches away or a new run starts.
+  useEffect(() => {
+    const event = txCountdownEventRef.current;
+    if (!event) return;
+    if (activeConversationId === event.conversationId && !isStreaming) return;
+    if (txCountdownTimerRef.current) clearTimeout(txCountdownTimerRef.current);
+    txCountdownEventRef.current = null;
+    setTxCountdown(null);
+  }, [activeConversationId, isStreaming]);
 
   // Tick the countdown and send at 0
   useEffect(() => {
     if (txCountdown === null) return;
     if (txCountdown <= 0) {
       const event = txCountdownEventRef.current;
-      if (event && activeConversationId && !isStreaming) {
-        sendSilentContext(activeConversationId, {
-          type: 'tx_completion',
-          ...event,
-        });
+      if (!event) {
+        setTxCountdown(null);
+        return;
       }
-      txCountdownEventRef.current = null;
-      setTxCountdown(null);
+      if (activeConversationId !== event.conversationId || isStreaming) {
+        setTxCountdown(1);
+        return;
+      }
+      const sent = sendSilentContext(event.conversationId, {
+        type: 'tx_completion',
+        ...event,
+      });
+      if (sent) {
+        useTxCompletionStore.getState().consume(event.id);
+        txCountdownEventRef.current = null;
+        setTxCountdown(null);
+        return;
+      }
+      setTxCountdown(1);
       return;
     }
     txCountdownTimerRef.current = setTimeout(() => {
@@ -1193,32 +1250,66 @@ export function ChatPanel({ shareToken = null }: ChatPanelProps) {
 
   const cancelTxCountdown = useCallback(() => {
     if (txCountdownTimerRef.current) clearTimeout(txCountdownTimerRef.current);
+    const event = txCountdownEventRef.current;
+    if (event) {
+      useTxCompletionStore.getState().consume(event.id);
+    }
     txCountdownEventRef.current = null;
     setTxCountdown(null);
   }, []);
 
   // ── Auto-send form completion silently ──
   const pendingFormCompletion = useFormCompletionStore(
-    (state) => state.pending.find((e) => e.conversationId === activeConversationId)
+    (state) =>
+      state.pending.find(
+        (e) =>
+          e.conversationId === activeConversationId &&
+          Date.now() - e.timestamp <= FORM_EVENT_TTL_MS
+      )
   );
 
   useEffect(() => {
     if (!pendingFormCompletion) return;
     if (isStreaming) return;
     if (!activeConversationId) return;
+    if (pendingFormCompletion.conversationId !== activeConversationId) return;
     // If a tx completion countdown is running, defer — tx_completion has higher priority
     if (txCountdown !== null) return;
     // If a tx completion event is pending for this conversation, defer
-    if (useTxCompletionStore.getState().pending.some((e) => e.conversationId === activeConversationId)) return;
+    if (
+      useTxCompletionStore
+        .getState()
+        .pending.some(
+          (e) =>
+            e.conversationId === activeConversationId &&
+            Date.now() - e.timestamp <= TX_EVENT_TTL_MS
+        )
+    ) {
+      return;
+    }
 
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const event = pendingFormCompletion;
-    useFormCompletionStore.getState().consume(event.id);
+    const attemptSendFormCompletion = () => {
+      if (cancelled) return;
+      const sent = sendSilentContext(activeConversationId, {
+        type: 'form_submission',
+        formId: event.formId,
+        values: event.values,
+      });
+      if (sent) {
+        useFormCompletionStore.getState().consume(event.id);
+        return;
+      }
+      retryTimer = setTimeout(attemptSendFormCompletion, 400);
+    };
 
-    sendSilentContext(activeConversationId, {
-      type: 'form_submission',
-      formId: event.formId,
-      values: event.values,
-    });
+    attemptSendFormCompletion();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [pendingFormCompletion, isStreaming, activeConversationId, sendSilentContext, txCountdown]);
 
   const handleQuickAction = (prompt: string) => {

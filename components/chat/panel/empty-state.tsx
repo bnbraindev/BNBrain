@@ -270,9 +270,24 @@ export function EmptyState({
     });
   }, [total, count]);
 
+  const resolvedVisibleIndices = useMemo(() => {
+    const valid = visibleIndices.filter((i) => i >= 0 && i < total);
+    if (valid.length >= count) {
+      return valid.slice(0, count);
+    }
+    const next = [...valid];
+    const existing = new Set(valid);
+    for (const idx of pickRandom(total, total)) {
+      if (existing.has(idx)) continue;
+      next.push(idx);
+      if (next.length >= count) break;
+    }
+    return next;
+  }, [visibleIndices, total, count]);
+
   const visibleActions = useMemo(
-    () => visibleIndices.map((i) => ({ action: quickActions[i], key: QUICK_ACTION_KEYS[i] })),
-    [visibleIndices, quickActions],
+    () => resolvedVisibleIndices.map((i) => ({ action: quickActions[i], key: QUICK_ACTION_KEYS[i] })),
+    [resolvedVisibleIndices, quickActions],
   );
 
   return (
@@ -334,9 +349,11 @@ export function EmptyState({
         {total > VISIBLE_COUNT && (
           <button
             type="button"
-            className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-card disabled:hover:text-muted-foreground"
             onClick={shuffle}
             title={t('empty.shuffleHint')}
+            disabled={isStreaming}
+            aria-disabled={isStreaming}
           >
             <RefreshCw className="size-3" />
             {t('empty.shuffle')}

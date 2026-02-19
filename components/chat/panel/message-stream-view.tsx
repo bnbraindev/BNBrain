@@ -60,16 +60,24 @@ export function MessageStreamView({
 
   // Debounced visibility: stays true for HIDE_DELAY_MS after isStreaming goes false
   const [showIndicator, setShowIndicator] = useState(isStreaming);
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (isStreaming) {
       // Immediately show when streaming starts
+      if (showTimerRef.current) {
+        clearTimeout(showTimerRef.current);
+        showTimerRef.current = null;
+      }
       if (hideTimerRef.current) {
         clearTimeout(hideTimerRef.current);
         hideTimerRef.current = null;
       }
-      setShowIndicator(true);
+      showTimerRef.current = setTimeout(() => {
+        setShowIndicator(true);
+        showTimerRef.current = null;
+      }, 0);
     } else {
       // Delay hiding to absorb tool-call flickers
       hideTimerRef.current = setTimeout(() => {
@@ -78,6 +86,7 @@ export function MessageStreamView({
       }, HIDE_DELAY_MS);
     }
     return () => {
+      if (showTimerRef.current) clearTimeout(showTimerRef.current);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
   }, [isStreaming]);
@@ -120,11 +129,11 @@ export function MessageStreamView({
           Uses fixed height + opacity transition instead of conditional mount/unmount. */}
       <div
         className={`mx-auto w-full max-w-3xl px-2 sm:px-3 transition-opacity duration-200 ${
-          showIndicator ? 'h-auto opacity-100' : 'h-0 overflow-hidden opacity-0'
+          showIndicator ? 'h-auto opacity-100' : 'h-0 overflow-hidden opacity-0 pointer-events-none'
         }`}
         aria-hidden={!showIndicator}
       >
-        <div className="pb-3">
+        <div className={showIndicator ? 'pb-3' : 'pb-0'}>
           <StreamingIndicator withHeader={!lastIsAssistant} />
         </div>
       </div>

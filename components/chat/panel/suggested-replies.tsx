@@ -224,16 +224,15 @@ export const SuggestedReplies = memo(function SuggestedReplies({
       : pool;
     if (filteredPool.length === 0) return null;
 
-    return filteredPool.slice(0, 3);
-  }, [messages]);
+    return filteredPool.slice(0, 3).map((item) => (locale === 'zh' ? item.zh : item.en));
+  }, [messages, locale]);
 
   if (!suggestions || isStreaming) return null;
 
   return (
     <div className="animate-stagger-in mx-auto flex w-full max-w-4xl flex-wrap items-center gap-1.5 px-3 pt-1 sm:px-4">
       <Sparkles className="size-3 text-primary/60" aria-hidden="true" />
-      {suggestions.map((s) => {
-        const text = locale === 'zh' ? s.zh : s.en;
+      {suggestions.map((text) => {
         return (
           <button
             key={text}
