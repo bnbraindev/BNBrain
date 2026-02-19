@@ -10,6 +10,8 @@
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QoOIlX)
 
+
+![Contract Deployment Flow](https://static.bnbrain.dev/contract.png)
 ---
 
 ## BNBrain 是什么？
