@@ -2824,8 +2824,8 @@ export const aiTools = {
         }, null, 2);
         log(`Phase3 payload: ${(dataPayload.length / 1024).toFixed(1)}KB`);
 
-        // 60s hard timeout to prevent indefinite hangs
-        const llmAbort = AbortSignal.timeout(60_000);
+        // 45s hard timeout — must finish well before the 300s HTTP maxDuration
+        const llmAbort = AbortSignal.timeout(45_000);
         const { text } = await generateText({
           model,
           system: reportJsonPrompt,

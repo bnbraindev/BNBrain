@@ -16,7 +16,7 @@ import { ensureChatRunWorkerStarted } from '@/lib/server/chat-run-worker';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
 import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export const runtime = 'nodejs';
 

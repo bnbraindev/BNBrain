@@ -188,8 +188,8 @@ function ProgressCard({
   // Track consecutive "no progress" polls to detect stale/completed state
   const noProgressCountRef = useRef(0);
   // Initial grace period: don't count "no progress" for the first 5s
-  const INTERRUPT_THRESHOLD = 6;
-  const INITIAL_GRACE_MS = 5000;
+  const INTERRUPT_THRESHOLD = 40;
+  const INITIAL_GRACE_MS = 8000;
   const initialGracePeriodRef = useRef(true);
 
   useEffect(() => {
@@ -220,7 +220,7 @@ function ProgressCard({
         // No active analysis and no data — either not started or expired
         if (initialGracePeriodRef.current) return; // Don't count during initial grace period
         noProgressCountRef.current += 1;
-        // After 6 consecutive polls with no data (~9s), mark as interrupted.
+        // After 40 consecutive polls with no data (~60s), mark as interrupted.
         if (noProgressCountRef.current >= INTERRUPT_THRESHOLD) {
           setInterrupted(true);
         }

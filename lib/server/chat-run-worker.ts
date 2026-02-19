@@ -18,7 +18,7 @@ import {
   upsertConversation,
   type ConversationOwner,
 } from '@/lib/server/conversation-store';
-import { clearAnalysisProgress, setAnalysisProgress, scheduleClearAnalysisProgress } from '@/lib/server/analysis-progress';
+import { setAnalysisProgress, scheduleClearAnalysisProgress } from '@/lib/server/analysis-progress';
 import { resolveRuntimeChatModel } from '@/lib/server/chat-model-store';
 import { RunLogger } from '@/lib/server/run-logger';
 import type {
@@ -274,7 +274,7 @@ async function processChatRun(run: ChatRunRecord): Promise<void> {
       console.error('[chat run worker] Failed to persist interrupted run conversation state', persistError);
       logger.persistError({ phase: 'interrupted', errorMessage: persistError instanceof Error ? persistError.message : String(persistError), errorStack: persistError instanceof Error ? persistError.stack : undefined });
     }
-    clearAnalysisProgress(run.chatId);
+    scheduleClearAnalysisProgress(run.chatId, 30_000);
     return;
   }
 
@@ -429,7 +429,7 @@ async function processChatRun(run: ChatRunRecord): Promise<void> {
       }
 
       // ── Hide tool errors from client ──────────────────────
-      if (chunk.type === 'tool-output-error') {
+      if (chunk.type === 'tool-output-error' && chunk.toolName !== 'deepTokenAnalysis') {
         logger.toolErrorHidden({ toolCallId: chunk.toolCallId, toolName: chunk.toolName, errorText: chunk.errorText });
         console.error(`[chat run worker] Tool error hidden for run ${run.id}: toolCallId=${chunk.toolCallId} error=${chunk.errorText}`);
         pendingChunks.push({
@@ -447,6 +447,7 @@ async function processChatRun(run: ChatRunRecord): Promise<void> {
       }
       if (
         chunk.type === 'tool-output-available' &&
+        chunk.toolName !== 'deepTokenAnalysis' &&
         chunk.output != null &&
         typeof chunk.output === 'object' &&
         'error' in (chunk.output as Record<string, unknown>) &&
