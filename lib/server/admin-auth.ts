@@ -28,6 +28,10 @@ export function readNormalizedAdminAddress(value: string | null | undefined): st
   return normalizeWalletAddress(value);
 }
 
+export function isPasswordSession(address: string | null | undefined): boolean {
+  return typeof address === 'string' && address.startsWith('password:');
+}
+
 export async function isAuthorizedAdmin(
   token: string | null | undefined,
   sessionAddress: string | null | undefined,
@@ -35,6 +39,8 @@ export async function isAuthorizedAdmin(
 ): Promise<boolean> {
   if (isValidAdminToken(token)) return true;
   if (sessionPurpose !== 'admin') return false;
+  // Password-based admin session
+  if (isPasswordSession(sessionAddress)) return true;
   const normalizedAddress = readNormalizedAdminAddress(sessionAddress);
   if (!normalizedAddress) return false;
   return isAdminWalletAddress(normalizedAddress);

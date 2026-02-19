@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import {
-  bindInitialAdminWalletAddress,
   getAdminWalletAddress,
   getAdminWalletAddresses,
   isAdminWalletAddress,
@@ -57,7 +56,8 @@ export async function POST(req: Request) {
     });
     return Response.json({ error: 'Invalid request origin' }, { status: 403 });
   }
-  if (!(await isAllowedSiweChainId(parsed.data.chainId))) {
+  // Admin SIWE login accepts any chain ID
+  if (authPurpose !== 'admin' && !(await isAllowedSiweChainId(parsed.data.chainId))) {
     await writeSecurityAuditLog({
       eventType: 'siwe_verify',
       result: 'denied',
@@ -153,7 +153,6 @@ export async function POST(req: Request) {
       });
       return Response.json({ error: 'Invalid signature or expired challenge' }, { status: 401 });
     }
-    await bindInitialAdminWalletAddress(session.address);
     const [adminWalletAddress, adminWalletAddresses, isAdmin] = await Promise.all([
       getAdminWalletAddress(),
       getAdminWalletAddresses(),

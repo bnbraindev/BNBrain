@@ -13,6 +13,7 @@ import {
 } from '@/lib/server/siwe-auth';
 import { getRequestIpAddress } from '@/lib/server/rate-limit';
 import { writeSecurityAuditLog } from '@/lib/server/security-audit';
+import { hasAnyAdminCredentials } from '@/lib/server/admin-password';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,7 +43,7 @@ async function assertAuthorizedAdminRequest(req: Request): Promise<
       ok: true;
       token: string | null;
       session: Awaited<ReturnType<typeof getWalletAuthSessionFromRequest>>;
-      authMode: 'token' | 'wallet';
+      authMode: 'token' | 'wallet' | 'setup';
       requestIp: string;
     }
   | { ok: false; response: Response }
@@ -51,7 +52,15 @@ async function assertAuthorizedAdminRequest(req: Request): Promise<
   const session = await getWalletAuthSessionFromRequest(req);
   const requestIp = getRequestIpAddress(req);
   const authContext = await getAdminAuthContext(token, session?.address ?? null, session?.purpose ?? null);
-  const authMode: 'token' | 'wallet' = token ? 'token' : 'wallet';
+  const authMode: 'token' | 'wallet' | 'setup' = token ? 'token' : 'wallet';
+
+  // Allow initial setup: no admin wallets AND no admin credentials
+  if (!authContext.authorized) {
+    const [hasCredentials] = await Promise.all([hasAnyAdminCredentials()]);
+    if (authContext.adminWalletAddresses.length === 0 && !hasCredentials) {
+      return { ok: true, token: null, session: null, authMode: 'setup', requestIp };
+    }
+  }
 
   if (!authContext.authorized) {
     await writeSecurityAuditLog({

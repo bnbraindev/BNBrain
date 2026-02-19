@@ -48,7 +48,8 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Invalid request origin' }, { status: 403 });
   }
   const chainId = parsed.data.chainId ?? DEFAULT_SIWE_CHAIN_ID;
-  if (!(await isAllowedSiweChainId(chainId))) {
+  // Admin SIWE login accepts any chain ID
+  if (authPurpose !== 'admin' && !(await isAllowedSiweChainId(chainId))) {
     await writeSecurityAuditLog({
       eventType: 'siwe_challenge',
       result: 'denied',

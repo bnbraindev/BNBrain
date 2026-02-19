@@ -10,6 +10,7 @@ import type { ChatModelProtocol, ChatModelAuthMode } from '@/lib/server/chat-mod
 import { isAuthorizedAdmin, readBearerToken } from '@/lib/server/admin-auth';
 import { getWalletAuthSessionFromRequest } from '@/lib/server/siwe-auth';
 import { checkRateLimit, getRequestIpAddress } from '@/lib/server/rate-limit';
+import { addAdminWalletAddress } from '@/lib/server/admin-owner';
 
 /**
  * POST /api/setup/save
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { model, services, skipModel } = body as {
+    const { model, services, skipModel, adminWallet } = body as {
       model?: {
         displayName: string;
         protocol: string;
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
         rpc?: { url56?: string; url204?: string } | null;
       };
       skipModel?: boolean;
+      adminWallet?: string;
     };
 
     // Create model if provided and setup not yet completed
@@ -99,6 +101,15 @@ export async function POST(request: NextRequest) {
           },
           { status: 400 }
         );
+      }
+    }
+
+    // Save admin wallet address during initial setup
+    if (!completed && adminWallet && /^0x[0-9a-fA-F]{40}$/.test(adminWallet.trim())) {
+      try {
+        await addAdminWalletAddress(adminWallet.trim());
+      } catch (error) {
+        console.error('[setup save] failed to add admin wallet:', error);
       }
     }
 

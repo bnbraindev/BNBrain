@@ -419,3 +419,31 @@ export function buildClearedAuthSessionCookie(): string {
   const secure = process.env.NODE_ENV === 'production' ? ' Secure;' : '';
   return `${AUTH_SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0;${secure}`;
 }
+
+/**
+ * Create a session for password-authenticated admin.
+ * Uses `password:<username>` as the address to distinguish from wallet sessions.
+ */
+export async function createPasswordSession(
+  username: string
+): Promise<WalletAuthSessionWithToken> {
+  await ensureDatabaseSchema();
+  const token = createSessionToken();
+  const tokenHash = hashSessionToken(token);
+  const now = Date.now();
+  const expiresAt = now + SESSION_TTL_MS;
+  const address = `password:${username.trim().toLowerCase()}`;
+  const pool = getDbPool();
+  await pool.query(
+    `INSERT INTO auth_sessions (token_hash, address, purpose, created_at, expires_at, revoked_at)
+     VALUES ($1,$2,$3,$4,$5,NULL)`,
+    [tokenHash, address, 'admin', now, expiresAt]
+  );
+  return {
+    address,
+    purpose: 'admin',
+    expiresAt,
+    renewAt: getSessionRenewAt(expiresAt),
+    token,
+  };
+}

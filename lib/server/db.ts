@@ -6,7 +6,7 @@ declare global {
   var __bnbrainSchemaVersion: number | undefined;
 }
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 function resolveDatabaseUrl(): string {
   const directUrl = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
@@ -355,6 +355,16 @@ export async function ensureDatabaseSchema(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_conversations_project
         ON conversations(project_id, updated_at DESC)
         WHERE project_id IS NOT NULL;
+      `);
+
+      // ── v11: Admin password credentials ──
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS admin_credentials (
+          username VARCHAR(100) PRIMARY KEY,
+          password_hash TEXT NOT NULL,
+          created_at BIGINT NOT NULL,
+          updated_at BIGINT NOT NULL
+        );
       `);
       } catch (error) {
         globalThis.__bnbrainSchemaReady = undefined;

@@ -1,8 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { CheckCircle2, Copy, Loader2, Plus, Shield, Trash2 } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { useI18n } from '@/lib/i18n/context';
 
 interface AdminTransferPanelProps {
@@ -57,17 +56,12 @@ export function AdminTransferPanel({
   authToken,
 }: AdminTransferPanelProps) {
   const { t } = useI18n();
-  const { address: walletAddress } = useAccount();
   const [adminWalletAddresses, setAdminWalletAddresses] = useState(() =>
     mergeAddressList(initialAdminWalletAddresses)
   );
   const [inputAddress, setInputAddress] = useState('');
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [notice, setNotice] = useState<NoticeState | null>(null);
-  const normalizedWalletAddress = useMemo(
-    () => (walletAddress ? walletAddress.toLowerCase() : null),
-    [walletAddress]
-  );
   const isTokenMode = Boolean(authToken && authToken.trim());
   const adminsApiPath = isTokenMode
     ? `/api/admin/admins?token=${encodeURIComponent(authToken!.trim())}`
@@ -90,12 +84,8 @@ export function AdminTransferPanel({
       const response = await fetch(adminsApiPath, {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          address: normalizedInput,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: normalizedInput }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -136,12 +126,8 @@ export function AdminTransferPanel({
       const response = await fetch(adminsApiPath, {
         method: 'DELETE',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          address: targetAddress,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: targetAddress }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -185,15 +171,6 @@ export function AdminTransferPanel({
     }
   };
 
-  const handleUseConnectedWallet = () => {
-    if (!normalizedWalletAddress) {
-      setNotice({ tone: 'error', message: t('admin.transfer.connectWalletFirst') });
-      return;
-    }
-    setInputAddress(normalizedWalletAddress);
-    setNotice(null);
-  };
-
   const noticeClassName =
     notice?.tone === 'success'
       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
@@ -219,7 +196,7 @@ export function AdminTransferPanel({
           {adminWalletAddresses.length} {t('admin.transfer.admins')}
         </span>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+      <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
         <input
           name="adminWalletAddress"
           value={inputAddress}
@@ -231,21 +208,11 @@ export function AdminTransferPanel({
             }
           }}
           placeholder={t('admin.transfer.addressPlaceholder')}
-          className="h-9 rounded-md border border-border bg-card px-3 text-xs text-foreground outline-none transition-colors focus:border-ring"
+          className="h-9 rounded-md border border-border bg-card px-3 font-mono text-xs text-foreground outline-none transition-colors focus:border-ring"
         />
         <button
           type="button"
-          onClick={handleUseConnectedWallet}
-          disabled={isBusy || !normalizedWalletAddress}
-          className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-xs text-foreground hover:bg-accent disabled:opacity-50"
-        >
-          {t('admin.transfer.useConnected')}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            void handleAddAdmin();
-          }}
+          onClick={() => { void handleAddAdmin(); }}
           disabled={isBusy || !canAdd}
           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-[#F0B90B] px-3 text-xs font-medium text-black disabled:opacity-60"
         >
@@ -265,16 +232,11 @@ export function AdminTransferPanel({
       <div className="mt-4 rounded-xl border border-border bg-muted p-3">
         <p className="text-xs text-muted-foreground">
           {t('admin.meta.authMode')}:&nbsp;
-          {isTokenMode ? t('admin.meta.authModeToken') : t('admin.meta.authModeWallet')} |{' '}
-          {t('admin.transfer.connected')}:&nbsp;
-          {normalizedWalletAddress
-            ? compactAddress(normalizedWalletAddress)
-            : t('admin.transfer.notConnected')}
+          {isTokenMode ? t('admin.meta.authModeToken') : t('admin.meta.authModeWallet')}
         </p>
         <div className="mt-2 space-y-2">
           {hasAdmins ? (
             adminWalletAddresses.map((address) => {
-              const isSelf = normalizedWalletAddress === address;
               const removingCurrent = activeAction === `remove:${address}`;
               return (
                 <div
@@ -284,15 +246,13 @@ export function AdminTransferPanel({
                   <div className="min-w-0">
                     <p className="truncate font-mono text-foreground">{address}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {isSelf ? t('admin.transfer.connectedWallet') : t('admin.transfer.adminWallet')}
+                      {t('admin.transfer.adminWallet')}
                     </p>
                   </div>
                   <div className="ml-3 flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => {
-                        void handleCopy(address);
-                      }}
+                      onClick={() => { void handleCopy(address); }}
                       className="inline-flex h-7 items-center gap-1 rounded border border-border px-2 text-xs text-foreground hover:bg-accent"
                       aria-label={`Copy ${address}`}
                     >
@@ -301,9 +261,7 @@ export function AdminTransferPanel({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        void handleRemoveAdmin(address);
-                      }}
+                      onClick={() => { void handleRemoveAdmin(address); }}
                       disabled={isBusy || adminWalletAddresses.length <= 1}
                       className="inline-flex h-7 items-center gap-1 rounded border border-border px-2 text-xs text-foreground hover:bg-accent disabled:opacity-50"
                       aria-label={`Remove ${address}`}

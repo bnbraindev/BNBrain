@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { AUTH_SESSION_COOKIE_NAME, getWalletAuthSessionFromToken } from '@/lib/server/siwe-auth';
-import { getAdminAuthContext } from '@/lib/server/admin-auth';
+import { getAdminAuthContext, isPasswordSession } from '@/lib/server/admin-auth';
 
 export interface AdminPageContext {
   token: string;
@@ -30,7 +30,8 @@ export async function resolveAdminPageContext(
   const authContext = await getAdminAuthContext(token, walletSession?.address ?? null, walletSession?.purpose ?? null);
   const hasAdminWalletSession = Boolean(
     walletSession &&
-      authContext.adminWalletAddresses.includes(walletSession.address)
+      (isPasswordSession(walletSession.address) ||
+        authContext.adminWalletAddresses.includes(walletSession.address))
   );
   return {
     token,
