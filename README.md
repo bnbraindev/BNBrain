@@ -128,7 +128,7 @@ PostgreSQL included — no external database needed:
 
 ```bash
 git clone https://github.com/bnbraindev/BNBrain.git
-cd bnb-ai
+cd BNBrain 
 docker compose -f docker-compose.deploy.yml up -d
 # Open http://localhost:3000 → Setup Wizard
 ```
@@ -139,7 +139,7 @@ docker compose -f docker-compose.deploy.yml up -d
 
 ```bash
 git clone https://github.com/bnbraindev/BNBrain.git
-cd bnb-ai
+cd BNBrain
 npm install
 cp .env.example .env.local
 # Edit .env.local with your DATABASE_URL

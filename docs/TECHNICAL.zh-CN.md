@@ -169,7 +169,7 @@ sequenceDiagram
 ```bash
 # 克隆
 git clone https://github.com/bnbraindev/BNBrain.git
-cd bnb-ai
+cd BNBrain
 
 # 配置
 cp .env.example .env
@@ -188,7 +188,7 @@ docker compose up -d
 ```bash
 # 克隆
 git clone https://github.com/bnbraindev/BNBrain.git
-cd bnb-ai
+cd BNBrain
 
 # 安装依赖
 npm install

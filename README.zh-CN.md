@@ -128,7 +128,7 @@ BNBrain 是一个能在 BNB Chain 上**执行真实操作**的 AI 代理。不�
 
 ```bash
 git clone https://github.com/bnbraindev/BNBrain.git
-cd bnb-ai
+cd BNBrain
 docker compose -f docker-compose.deploy.yml up -d
 # 打开 http://localhost:3000 → 初始化向导
 ```
@@ -139,7 +139,7 @@ docker compose -f docker-compose.deploy.yml up -d
 
 ```bash
 git clone https://github.com/bnbraindev/BNBrain.git
-cd bnb-ai
+cd BNBrain
 npm install
 cp .env.example .env.local
 # 编辑 .env.local 填入 DATABASE_URL

@@ -169,7 +169,7 @@ The chat system uses a **worker-based architecture** that ensures AI continues p
 ```bash
 # Clone
 git clone https://github.com/bnbraindev/BNBrain.git
-cd bnb-ai
+cd BNBrain
 
 # Configure
 cp .env.example .env
@@ -188,7 +188,7 @@ docker compose up -d
 ```bash
 # Clone
 git clone https://github.com/bnbraindev/BNBrain.git
-cd bnb-ai
+cd BNBrain
 
 # Install dependencies
 npm install
