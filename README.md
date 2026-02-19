@@ -10,6 +10,8 @@ English | [中文](README.zh-CN.md)
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QoOIlX)
 
+> **Note:** Railway's free trial shares 1 GB RAM across **all** services in your account. If you have other projects running, BNBrain may fail to start. Use a dedicated Railway account for testing, upgrade to at least 2 GB RAM (4 GB recommended), or use Docker instead.
+
 ![Contract Deployment Flow](https://static.bnbrain.dev/contract.png)
 
 ---
@@ -125,6 +127,8 @@ All actions execute on **BSC Mainnet** and **opBNB**. See [`bsc.address`](bsc.ad
 3. Open your app URL → **Setup Wizard** guides you through configuration
 4. Enter your Anthropic API key and optional service keys
 5. Connect wallet and start chatting
+
+> **Note:** Railway's free trial shares 1 GB RAM across **all** services in your account. If you have other projects running, BNBrain may fail to start. Use a dedicated Railway account for testing, upgrade to at least 2 GB RAM (4 GB recommended), or use Docker (Option 2) instead.
 
 ### Option 2: Docker One-Click (Self-Hosted)
 

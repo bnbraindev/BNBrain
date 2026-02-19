@@ -10,6 +10,7 @@
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QoOIlX)
 
+> **注意：** Railway 免费账号的 1 GB 内存是整个账号**共享**的，如果您部署了其他服务，可能导致 BNBrain 内存不足无法启动。建议使用独立账号测试，或升级到至少 2 GB 内存（推荐 4 GB），也可使用 Docker 部署。
 
 ![Contract Deployment Flow](https://static.bnbrain.dev/contract.png)
 ---
@@ -125,6 +126,8 @@ BNBrain 是一个能在 BNB Chain 上**执行真实操作**的 AI 代理。不�
 3. 打开应用地址 → **初始化向导**引导完成配置
 4. 输入 Anthropic API Key 和可选的服务密钥
 5. 连接钱包，开始对话
+
+> **注意：** Railway 免费账号的 1 GB 内存是整个账号**共享**的，如果您部署了其他服务，可能导致 BNBrain 内存不足无法启动。建议使用独立账号测试，或升级到至少 2 GB 内存（推荐 4 GB），也可使用 Docker（方式二）部署。
 
 ### 方式二：Docker 一键部署（自托管）
 
